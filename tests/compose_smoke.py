@@ -23,6 +23,8 @@ def main() -> None:
     project = f"iemp-smoke-{secrets.token_hex(6)}"
     environment = {
         **os.environ,
+        "DATABASE_URL": "",
+        "VITE_API_BASE_URL": "/api",
         "POSTGRES_DB": "iemp_smoke",
         "POSTGRES_USER": "iemp_smoke",
         "POSTGRES_PASSWORD": secrets.token_urlsafe(24),

@@ -22,9 +22,12 @@ runs as UID/GID 10001 and has no application volume or host-source mount.
 | `GET /api/health/live` | HTTP 200 while the API can serve requests. No dependency check. |
 | `GET /api/health/ready` | HTTP 200 with `{"status":"ready","database":"ok"}` after an authenticated `SELECT 1`; HTTP 503 if PostgreSQL is unavailable. |
 
-Database connection settings use libpq environment variables: `PGHOST`, `PGPORT`,
-`PGDATABASE`, `PGUSER`, and `PGPASSWORD`. All are required at startup; Compose
-supplies them. Connection timeout is three seconds; statement timeout is two
+Set `DATABASE_URL` to a PostgreSQL URL containing host, database, username, and
+password (port defaults to 5432). A nonempty URL takes precedence over `PGHOST`,
+`PGPORT`, `PGDATABASE`, `PGUSER`, and `PGPASSWORD`; all five `PG*` settings are
+required when the URL is empty/unset. Compose supplies the local `PG*` defaults.
+Invalid configuration fails startup without printing credentials.
+Connection timeout is three seconds; statement timeout is two
 seconds. Readiness reconnects on each request, so a recovered database requires
 no API restart. Container health uses readiness; liveness remains independent.
 
@@ -45,14 +48,21 @@ cd backend
 python -m unittest discover -s tests -v
 ```
 
-To run the API natively, provide the five `PG*` variables for your development
-PostgreSQL instance, then run from `backend/`:
+To run the API natively, install the development dependencies above, then run
+from `backend/`. Copy the example once and edit `DATABASE_URL` to match a
+separately provisioned local PostgreSQL instance:
 
 ```sh
-uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+cp .env.example .env
+# Edit .env before starting. Existing shell variables take precedence.
+uvicorn app.main:app --env-file .env --host 127.0.0.1 --port 8000 --reload
 ```
 
-The Compose database has no published port by default.
+The Compose database has no published port by default. `python-dotenv` is a
+development dependency for Uvicorn's explicit `--env-file` option; the application
+does not search for `.env` files. Compose injects settings from the root `.env`
+and does not load `backend/.env`. See the [configuration guide](../docs/configuration.md)
+for URL escaping, precedence, and secret handling.
 
 To intentionally update dependency locks, use `uv` 0.12.18 from the repository root:
 

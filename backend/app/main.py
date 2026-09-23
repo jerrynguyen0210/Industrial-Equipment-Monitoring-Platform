@@ -1,7 +1,6 @@
 """Local platform health API; telemetry ingestion is a separate workstream."""
 
 import logging
-import os
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from typing import Literal
@@ -10,6 +9,8 @@ import psycopg
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+
+from app.config import database_conninfo
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -22,6 +23,7 @@ class Health(BaseModel):
 def check_database() -> None:
     """Authenticate and execute a query, with bounded connection/query times."""
     with psycopg.connect(
+        database_conninfo(),
         connect_timeout=3,
         options="-c statement_timeout=2000",
         autocommit=True,
@@ -32,13 +34,7 @@ def check_database() -> None:
 def create_app(database_probe: Callable[[], None] = check_database) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        required = ("PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD")
-        missing = [name for name in required if not os.environ.get(name)]
-        if missing:
-            raise RuntimeError(f"Missing database configuration: {', '.join(missing)}")
-        port = os.environ["PGPORT"]
-        if not port.isdecimal() or not 1 <= int(port) <= 65535:
-            raise RuntimeError("PGPORT must be a number between 1 and 65535")
+        database_conninfo()
         yield
 
     application = FastAPI(

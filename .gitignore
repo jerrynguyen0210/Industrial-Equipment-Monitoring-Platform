@@ -1,11 +1,24 @@
 # Local environment and credentials; keep sanitized examples in version control.
 .env
 .env.*
+*.env
+*.env.*
 !.env.example
 !.env.*.example
+!*.env.example
+.secrets/
+secrets/
+credentials/
+credentials.json
+service-account*.json
+.pgpass
+*.pem
 *.key
+*.p8
 *.p12
 *.pfx
+*.jks
+*.keystore
 
 # Operating systems and local editor state.
 .DS_Store

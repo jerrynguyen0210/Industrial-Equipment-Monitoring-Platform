@@ -59,6 +59,11 @@ Defaults bind published ports to loopback and are for local development with
 synthetic data. Optional overrides are listed in [.env.example](.env.example);
 copy it to `.env` only when changing defaults.
 
+Service examples are available for [backend](backend/.env.example),
+[frontend](frontend/.env.example), [gateway](gateway/.env.example), and
+[simulator](simulator/.env.example). The [configuration guide](docs/configuration.md)
+explains which files are loaded, local addresses, and credential placeholders.
+
 | Service | Host address |
 | --- | --- |
 | Frontend | http://localhost:8080 |

@@ -23,6 +23,8 @@ review gates or establish implementation and test completion.
 The [local platform bootstrap](local-platform.md) records the implemented Compose
 scope and development exceptions. Executable setup, hardware connectivity, and
 operational commands are in the [infrastructure runbook](../infra/README.md).
+The [configuration guide](configuration.md) lists service environment templates,
+local defaults, loading precedence, and secret handling.
 
 - System architecture and workstream boundaries.
 - Device telemetry schemas, gateway protocols, and backend API contracts.

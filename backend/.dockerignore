@@ -4,3 +4,22 @@
 !app/**
 **/__pycache__
 **/*.pyc
+
+# Do not re-include secrets stored beneath the allowed app/ tree.
+**/.env
+**/.env.*
+**/*.env
+**/*.env.*
+**/secrets
+**/.secrets
+**/credentials
+**/credentials.json
+**/service-account*.json
+**/.pgpass
+**/*.pem
+**/*.key
+**/*.p8
+**/*.p12
+**/*.pfx
+**/*.jks
+**/*.keystore

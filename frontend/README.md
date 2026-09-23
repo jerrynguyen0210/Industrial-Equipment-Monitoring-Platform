@@ -23,11 +23,25 @@ For frontend development, start the backend using Compose, then in `frontend/`:
 
 ```sh
 npm ci
+cp .env.example .env
 npm run dev
 ```
 
 Open the URL printed by Vite (normally http://localhost:5173). Vite proxies `/api`
-to `http://127.0.0.1:8000`; adjust `vite.config.ts` if you override `BACKEND_PORT`.
+to `http://127.0.0.1:8000`; set `API_PROXY_TARGET` in `frontend/.env` if you override
+`BACKEND_PORT`. Restart Vite after changing the file.
+
+`VITE_API_BASE_URL` defaults to `/api`; it includes the API prefix, and a trailing
+slash is optional. For an absolute URL, use a browser-reachable address with the
+API prefix and configure CORS on that API. The current backend has no cross-origin
+allowlist, so the same-origin proxy is the working local default.
+
+Vite loads `frontend/.env` for native development/builds. Compose instead passes
+`VITE_API_BASE_URL` from the root `.env` as a Docker build argument; run
+`docker compose up -d --build frontend` after changes. Setting an environment
+variable on an already-built Nginx container cannot change the bundle. All
+`VITE_*` values are public: never put database passwords or gateway credentials
+there. See the [configuration guide](../docs/configuration.md).
 
 ```sh
 npm run check

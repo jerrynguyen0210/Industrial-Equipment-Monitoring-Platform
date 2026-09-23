@@ -4,6 +4,11 @@ import "./styles.css";
 
 type Status = "checking" | "ready" | "unavailable";
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "/api").replace(
+  /\/+$/,
+  "",
+);
+
 function PlatformStatus() {
   const [status, setStatus] = useState<Status>("checking");
 
@@ -16,7 +21,7 @@ function PlatformStatus() {
       request = new AbortController();
       const timeout = setTimeout(() => request.abort(), 6000);
       try {
-        const response = await fetch("/api/health/ready", {
+        const response = await fetch(`${API_BASE_URL}/health/ready`, {
           signal: request.signal,
           cache: "no-store",
         });

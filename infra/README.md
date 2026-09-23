@@ -61,11 +61,18 @@ Compose. `.env` is ignored by Git and excluded from application image contexts.
 | --- | --- | --- |
 | `POSTGRES_DB` / `POSTGRES_USER` | `iemp` / `iemp` | Initial database and local owner |
 | `POSTGRES_PASSWORD` | `iemp-local-only` | Local-only password shared with the backend |
+| `DATABASE_URL` | Empty | Optional backend PostgreSQL URL; overrides its `PG*` settings |
+| `VITE_API_BASE_URL` | `/api` | Public browser API prefix, applied during frontend build |
 | `FRONTEND_PORT` / `BACKEND_PORT` / `MQTT_PORT` | `8080` / `8000` / `1883` | Published host ports |
 | `FRONTEND_BIND_ADDRESS` / `BACKEND_BIND_ADDRESS` / `MQTT_BIND_ADDRESS` | `127.0.0.1` | Host interfaces to publish on |
 
 Changing a host port does not change the service's internal port. The frontend's
 same-origin API proxy therefore continues working if `BACKEND_PORT` changes.
+Native clients must update their own MQTT port or API/proxy address when a host
+port changes. The root example owns PostgreSQL and broker publishing settings;
+Mosquitto's listener/anonymous access remain explicit in
+`infra/mosquitto/mosquitto.conf`, which does not read `.env`. See the
+[configuration guide](../docs/configuration.md) for service templates and precedence.
 Plain HTTP, anonymous MQTT, and a shared development database owner/password are
 explicit local-only exceptions. Do not use this configuration as a deployed
 environment or place production data in it. No secrets are shipped to the browser.

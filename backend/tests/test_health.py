@@ -13,6 +13,7 @@ class HealthTests(unittest.TestCase):
         environment = patch.dict(
             os.environ,
             {
+                "DATABASE_URL": "",
                 "PGHOST": "localhost",
                 "PGPORT": "5432",
                 "PGDATABASE": "test",

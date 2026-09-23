@@ -25,6 +25,13 @@ the gateway host's control. Start the development broker using `docker compose u
 `docker compose up`. A gateway on the same computer uses MQTT `127.0.0.1:1883` and
 backend base URL `http://127.0.0.1:8000`. Only backend health endpoints exist so far.
 
+[.env.example](.env.example) records planned `MQTT_HOST`, `MQTT_PORT`,
+`API_BASE_URL` (including `/api`), and `GATEWAY_API_KEY` settings. Copy it to an
+ignored `.env` for local values. No gateway runtime loads this file yet, and the
+credential placeholder does not enable authentication. Provision a unique
+gateway credential when authentication/ingestion is implemented; keep it out of
+frontend configuration. See the [configuration guide](../docs/configuration.md).
+
 See [hardware connectivity and independent service lifecycles](../infra/README.md#gateway-and-firmware-outside-compose)
 for Pi/LAN settings and backend-outage testing. Keep the SQLite queue outside
 Compose volumes. A backend outage must not stop native MQTT acquisition.
