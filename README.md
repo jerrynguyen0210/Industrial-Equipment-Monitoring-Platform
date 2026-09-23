@@ -67,8 +67,8 @@ explains which files are loaded, local addresses, and credential placeholders.
 | Service | Host address |
 | --- | --- |
 | Frontend | http://localhost:8080 |
-| Backend liveness | http://localhost:8000/api/health/live |
-| Backend database readiness | http://localhost:8000/api/health/ready |
+| Backend liveness | http://localhost:8000/health |
+| Backend database readiness | http://localhost:8000/ready |
 | MQTT | `127.0.0.1:1883` |
 | PostgreSQL | Internal only; use `docker compose exec postgres ...`. |
 

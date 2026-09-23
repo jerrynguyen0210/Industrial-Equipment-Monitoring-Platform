@@ -25,6 +25,8 @@ scope and development exceptions. Executable setup, hardware connectivity, and
 operational commands are in the [infrastructure runbook](../infra/README.md).
 The [configuration guide](configuration.md) lists service environment templates,
 local defaults, loading precedence, and secret handling.
+The [health API contract](health-api.md) defines backend liveness, database
+readiness, response schemas, and dependency failure behavior for local integration.
 
 - System architecture and workstream boundaries.
 - Device telemetry schemas, gateway protocols, and backend API contracts.

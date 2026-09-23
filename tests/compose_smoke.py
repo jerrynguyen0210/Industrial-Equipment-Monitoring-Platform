@@ -155,12 +155,20 @@ def main() -> None:
             compose("up", "--build", "--wait", "--wait-timeout", "120", timeout=600)
             frontend = url("frontend", 8080, "/")
             ready = url("frontend", 8080, "/api/health/ready")
+            backend_ready = url("backend", 8000, "/ready")
+            live = url("backend", 8000, "/health")
             status, page = request(frontend)
             require(status == 200, "Frontend failed to serve HTML")
             require(
                 "Industrial Equipment Monitoring Platform" in page, "Wrong frontend"
             )
             wait_ready(ready)
+            wait_ready(backend_ready)
+            status, body = request(live)
+            require(
+                status == 200 and json.loads(body) == {"status": "ok"},
+                "Backend liveness contract failed",
+            )
             with socket.create_connection(
                 ("127.0.0.1", published_port("mosquitto", 1883)), timeout=5
             ):
@@ -183,12 +191,21 @@ def main() -> None:
             print("PASS: MQTT and frontend survive backend outage", flush=True)
 
             compose("stop", "postgres")
+            status, body = request(live)
             require(
-                request(url("backend", 8000, "/api/health/live"))[0] == 200,
+                status == 200 and json.loads(body) == {"status": "ok"},
                 "Database outage broke API liveness",
             )
-            require(request(ready)[0] == 503, "Readiness concealed a database outage")
+            for address in (backend_ready, ready):
+                status, body = request(address)
+                require(
+                    status == 503
+                    and json.loads(body)
+                    == {"status": "unavailable", "database": "unavailable"},
+                    f"Readiness concealed a database outage at {address}",
+                )
             compose("up", "--wait", "--wait-timeout", "60", "postgres")
+            wait_ready(backend_ready)
             wait_ready(ready)
             print("PASS: database outage and readiness recovery", flush=True)
 

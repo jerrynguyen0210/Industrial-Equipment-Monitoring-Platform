@@ -16,8 +16,12 @@ logger = logging.getLogger("uvicorn.error")
 
 
 class Health(BaseModel):
-    status: Literal["ok", "ready", "unavailable"]
-    database: Literal["ok", "unavailable"] | None = None
+    status: Literal["ok"]
+
+
+class Readiness(BaseModel):
+    status: Literal["ready", "unavailable"]
+    database: Literal["ok", "unavailable"]
 
 
 def check_database() -> None:
@@ -44,12 +48,24 @@ def create_app(database_probe: Callable[[], None] = check_database) -> FastAPI:
         redoc_url=None,
     )
 
-    @application.get("/api/health/live", response_model_exclude_none=True)
+    @application.get("/health", response_model=Health)
+    @application.get("/api/health/live", response_model=Health)
     def live() -> Health:
+        """Report API liveness without checking dependencies."""
         return Health(status="ok")
 
-    @application.get("/api/health/ready", response_model=Health)
-    def ready() -> Health | JSONResponse:
+    @application.get(
+        "/ready",
+        response_model=Readiness,
+        responses={503: {"model": Readiness, "description": "Database unavailable"}},
+    )
+    @application.get(
+        "/api/health/ready",
+        response_model=Readiness,
+        responses={503: {"model": Readiness, "description": "Database unavailable"}},
+    )
+    def ready() -> Readiness | JSONResponse:
+        """Check database authentication and query execution on every request."""
         try:
             database_probe()
         except psycopg.Error:
@@ -57,11 +73,11 @@ def create_app(database_probe: Callable[[], None] = check_database) -> FastAPI:
             logger.warning("database_readiness_failed")
             return JSONResponse(
                 status_code=503,
-                content=Health(
+                content=Readiness(
                     status="unavailable", database="unavailable"
                 ).model_dump(),
             )
-        return Health(status="ready", database="ok")
+        return Readiness(status="ready", database="ok")
 
     return application
 

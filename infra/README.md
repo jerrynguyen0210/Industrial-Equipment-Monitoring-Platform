@@ -37,7 +37,7 @@ limits total 1 GiB of container memory; allow at least 2 GB plus build overhead.
 | --- | --- | --- | --- |
 | PostgreSQL | `postgres:5432` | None | `pg_isready` over TCP |
 | Mosquitto | `mosquitto:1883` | `127.0.0.1:1883` | MQTT QoS 1 publish with a deadline |
-| Backend | `backend:8000` | http://localhost:8000 | `/api/health/ready`, including a database query |
+| Backend | `backend:8000` | http://localhost:8000 | `/ready`, including a database query |
 | Frontend | `frontend:8080` | http://localhost:8080 | Nginx `/healthz` |
 
 The `database` network is explicitly internal and contains only PostgreSQL and
@@ -125,7 +125,7 @@ added by those workstreams when their implementations exist.
 
 For a gateway process on the same computer, configure MQTT at `127.0.0.1:1883`
 and the backend base URL at `http://127.0.0.1:8000`. The intended ingestion route
-is not implemented yet; `/api/health/ready` can verify connectivity now.
+is not implemented yet; `/ready` can verify connectivity now.
 
 For an ESP32 or Raspberry Pi on a trusted lab LAN, set `MQTT_BIND_ADDRESS` in
 `.env` to the development computer's LAN IPv4 address. If a Pi gateway also needs

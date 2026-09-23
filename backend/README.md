@@ -19,8 +19,13 @@ runs as UID/GID 10001 and has no application volume or host-source mount.
 
 | Endpoint | Meaning |
 | --- | --- |
-| `GET /api/health/live` | HTTP 200 while the API can serve requests. No dependency check. |
-| `GET /api/health/ready` | HTTP 200 with `{"status":"ready","database":"ok"}` after an authenticated `SELECT 1`; HTTP 503 if PostgreSQL is unavailable. |
+| `GET /health` | HTTP 200 with `{"status":"ok"}` while the API can serve requests. No dependency check. |
+| `GET /ready` | HTTP 200 with `{"status":"ready","database":"ok"}` after an authenticated `SELECT 1`; HTTP 503 with `{"status":"unavailable","database":"unavailable"}` on database failure. |
+
+`/api/health/live` and `/api/health/ready` remain equivalent aliases for existing
+clients and the frontend proxy. The [health API contract](../docs/health-api.md)
+documents response fields, failure behavior, and machine-checkable examples.
+`GET /openapi.json` describes both success and readiness HTTP 503 responses.
 
 Set `DATABASE_URL` to a PostgreSQL URL containing host, database, username, and
 password (port defaults to 5432). A nonempty URL takes precedence over `PGHOST`,
