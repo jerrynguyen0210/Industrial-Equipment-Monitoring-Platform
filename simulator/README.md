@@ -2,6 +2,11 @@
 
 Virtual devices and repeatable telemetry scenarios for development and testing.
 
+## Development guide
+
+Read [Simulator Coding Conventions](CODING_CONVENTIONS.md) for reproducible
+scenarios, event identity, fault injection, bounded workloads, and run reporting.
+
 ## Planned contents
 
 - Device models and configurable telemetry generation.

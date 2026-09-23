@@ -2,6 +2,11 @@
 
 Tests and fixtures that validate integration across workstreams.
 
+## Development guide
+
+Read [Shared Testing Coding Conventions](CODING_CONVENTIONS.md) for suite placement,
+fixtures, contract verification, reliability scenarios, and acceptance evidence.
+
 ## Planned contents
 
 - Contract tests for telemetry and API boundaries.

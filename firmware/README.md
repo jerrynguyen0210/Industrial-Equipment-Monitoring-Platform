@@ -2,6 +2,11 @@
 
 Device-side sensor sampling, equipment telemetry, and connectivity.
 
+## Development guide
+
+Read [Firmware Coding Conventions](CODING_CONVENTIONS.md) for code structure,
+sampling, timing, telemetry identity, connectivity, security, and hardware validation.
+
 ## Planned contents
 
 - Firmware source and supported board definitions.

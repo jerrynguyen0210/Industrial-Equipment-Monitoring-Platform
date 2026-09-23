@@ -2,6 +2,11 @@
 
 Telemetry ingestion, persistence, APIs, and equipment monitoring rules.
 
+## Development guide
+
+Read [Backend Coding Conventions](CODING_CONVENTIONS.md) for code structure,
+telemetry integrity, API contracts, persistence, security, testing, and operations.
+
 ## Planned contents
 
 - Application services and API endpoints.

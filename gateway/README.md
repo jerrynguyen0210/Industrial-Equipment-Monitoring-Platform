@@ -2,6 +2,11 @@
 
 Edge connectivity, protocol translation, and telemetry forwarding to the backend.
 
+## Development guide
+
+Read [Gateway Coding Conventions](CODING_CONVENTIONS.md) for protocol boundaries,
+durable queue handling, batching, retries, security, and recovery validation.
+
 ## Planned contents
 
 - Device protocol adapters and telemetry normalization.

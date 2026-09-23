@@ -65,6 +65,18 @@ Use issue IDs such as `IEMP-42`, branches such as
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete conventions.
 
+Read the conventions guide for the workstream you are changing:
+
+| Workstream | Guide |
+| --- | --- |
+| Firmware | [Firmware Coding Conventions](firmware/CODING_CONVENTIONS.md) |
+| Gateway | [Gateway Coding Conventions](gateway/CODING_CONVENTIONS.md) |
+| Backend | [Backend Coding Conventions](backend/CODING_CONVENTIONS.md) |
+| Frontend | [Frontend Coding Conventions](frontend/CODING_CONVENTIONS.md) |
+| Simulator | [Simulator Coding Conventions](simulator/CODING_CONVENTIONS.md) |
+| Infrastructure | [Infrastructure Coding Conventions](infra/CODING_CONVENTIONS.md) |
+| Shared tests | [Shared Testing Coding Conventions](tests/CODING_CONVENTIONS.md) |
+
 ## License
 
 TODO: Choose a license and add a `LICENSE` file before distributing the project.

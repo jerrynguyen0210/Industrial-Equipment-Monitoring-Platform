@@ -2,6 +2,11 @@
 
 Local environment configuration and platform deployment definitions.
 
+## Development guide
+
+Read [Infrastructure Coding Conventions](CODING_CONVENTIONS.md) for configuration,
+environment isolation, secrets, deployment, persistent storage, and recovery.
+
 ## Planned contents
 
 - Local service orchestration and sanitized configuration examples.

@@ -2,6 +2,11 @@
 
 Equipment dashboards, telemetry views, and user-facing monitoring workflows.
 
+## Development guide
+
+Read [Frontend Coding Conventions](CODING_CONVENTIONS.md) for component design,
+API integration, telemetry presentation, accessibility, security, and testing.
+
 ## Planned contents
 
 - Application pages and reusable UI components.
