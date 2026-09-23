@@ -53,6 +53,12 @@ cd backend
 python -m unittest discover -s tests -v
 ```
 
+The [CI workflow](../.github/workflows/local-platform.yml) runs the same lint,
+formatting, and test commands on Python 3.13 for every push and pull request.
+The pip download cache is keyed by the committed requirements lockfiles; each
+run still installs with `--require-hashes`. Unit tests supply their own synthetic
+configuration and need no running PostgreSQL. See the [CI guide](../docs/ci.md).
+
 To run the API natively, install the development dependencies above, then run
 from `backend/`. Copy the example once and edit `DATABASE_URL` to match a
 separately provisioned local PostgreSQL instance:

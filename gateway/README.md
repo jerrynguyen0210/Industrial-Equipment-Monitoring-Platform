@@ -18,6 +18,20 @@ durable queue handling, batching, retries, security, and recovery validation.
 TODO: Implement the native gateway and document installation, configuration, run,
 and test commands. No gateway implementation exists yet.
 
+The [CI workflow](../.github/workflows/local-platform.yml) has an optional native
+build hook. It reports the build as skipped until `gateway/CMakeLists.txt` exists.
+Once that file is committed, every push and pull request runs:
+
+```sh
+cmake -S gateway -B gateway/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON
+cmake --build gateway/build --parallel 2
+```
+
+These commands run from the repository root with the Ubuntu 24.04 runner's CMake
+and C++ compiler. Add any required system dependencies and gateway test commands
+to the workflow with the first implementation. Configuration or compilation
+errors fail the job; the missing-project skip is not gateway validation evidence.
+
 The architecture baseline is native C++17 with a local SQLite queue. The gateway
 is deliberately outside Compose so hardware access and queue storage stay under
 the gateway host's control. Start the development broker using `docker compose up

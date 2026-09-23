@@ -97,7 +97,10 @@ Compose project, exercises startup, API routing, MQTT, outages, and persistence,
 then removes only its own test resources. See [tests/README.md](tests/README.md)
 and the workstream READMEs for unit, formatting, and build checks. The
 [local platform workflow](.github/workflows/local-platform.yml) runs these checks
-on relevant pushes and pull requests.
+on every push and pull request, alongside backend lint/tests and frontend
+formatting/type checks, component tests, and a production build. A native gateway
+build activates when its CMake project exists. See the [CI guide](docs/ci.md)
+for dependency caching, failure handling, and local reproduction.
 
 ### Deployment
 

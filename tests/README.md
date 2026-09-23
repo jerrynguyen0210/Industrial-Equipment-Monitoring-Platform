@@ -48,7 +48,10 @@ project name when cleaning it up. No hardware or native gateway is exercised.
 This is infrastructure evidence, not ingestion, queue durability, or MVP acceptance.
 
 The [local platform workflow](../.github/workflows/local-platform.yml) runs these
-checks alongside backend health tests and frontend formatting/type/build checks.
+checks in a separate job alongside backend lint/tests and frontend
+formatting/type checks, component tests, and a production build on every push
+and pull request. All jobs report failures independently. See the
+[CI guide](../docs/ci.md) for triggers, cache behavior, and local reproduction.
 For Python linting, use the backend's locked development dependencies and:
 
 ```sh

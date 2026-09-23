@@ -27,6 +27,8 @@ The [configuration guide](configuration.md) lists service environment templates,
 local defaults, loading precedence, and secret handling.
 The [health API contract](health-api.md) defines backend liveness, database
 readiness, response schemas, and dependency failure behavior for local integration.
+The [CI guide](ci.md) documents automatic verification on every push and pull
+request, dependency caches, the optional gateway build, and local reproduction.
 
 - System architecture and workstream boundaries.
 - Device telemetry schemas, gateway protocols, and backend API contracts.

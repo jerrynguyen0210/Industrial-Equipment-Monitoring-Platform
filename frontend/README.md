@@ -9,8 +9,8 @@ API integration, telemetry presentation, accessibility, security, and testing.
 
 ## Setup and validation
 
-The bootstrap uses React, strict TypeScript, Vite, Node.js 24, and npm with a
-committed lockfile. It displays backend/database readiness, loading, and outage
+The bootstrap uses React, strict TypeScript, Vite, Node.js 24.15+ (below 25), and
+npm with a committed lockfile. It displays backend/database readiness, loading, and outage
 states. Equipment data, history, and alerts are not implemented yet.
 
 From the repository root, `docker compose up` builds the frontend and serves it at
@@ -45,14 +45,26 @@ there. See the [configuration guide](../docs/configuration.md).
 
 ```sh
 npm run check
+npm test
 npm run build
 ```
 
-`check` runs TypeScript and Prettier. `build` produces `dist/`; the Docker build
-copies that output into Nginx. `npm run format` applies formatting. Container
+`check` runs TypeScript and Prettier, including the test code and configuration.
+`test` runs Vitest once with React Testing Library and jsdom; a failed test or an
+empty suite returns a nonzero exit code. `npm run test:watch` reruns tests during
+development. Tests use mocked HTTP responses and controlled timers to cover
+loading, readiness validation, outages, automatic recovery, request timeouts,
+unmount cleanup, and StrictMode polling. They need no running backend or Docker.
+
+`build` produces `dist/`; the Docker build copies that output into Nginx.
+`npm run format` applies formatting. Container
 health checks `/healthz`, independently of backend availability; the status page
 polls backend readiness every five seconds after the preceding request completes,
 times out failed requests, and recovers automatically.
+
+The [CI workflow](../.github/workflows/local-platform.yml) runs these checks on
+every push and pull request. See the [CI guide](../docs/ci.md) for dependency
+caches, integration checks, and failure handling.
 
 Coordinate API contracts and interface decisions in [docs/](../docs/README.md).
 Follow the shared [conventions](../CONTRIBUTING.md).
