@@ -1,0 +1,76 @@
+# Local environment and credentials; keep sanitized examples in version control.
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.key
+*.p12
+*.pfx
+
+# Operating systems and local editor state.
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+*.swp
+*.swo
+*~
+
+# Logs, coverage, and generated test reports.
+*.log
+logs/
+coverage/
+.coverage
+.coverage.*
+htmlcov/
+test-results/
+playwright-report/
+
+# JavaScript / TypeScript dependencies and generated output.
+node_modules/
+dist/
+.next/
+.nuxt/
+.cache/
+*.tsbuildinfo
+
+# Python dependencies, caches, and packaging output.
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Firmware and native build output.
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+.pio/
+*.o
+*.obj
+*.elf
+*.hex
+
+# Infrastructure state and local variables. Commit dependency lockfiles.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+!*.tfvars.json.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+crash.log

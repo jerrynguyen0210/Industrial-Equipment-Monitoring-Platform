@@ -1,0 +1,55 @@
+name: Task
+description: Define work for a platform workstream.
+title: "[workstream] Short task description"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        After creation, this issue's ID is IEMP-<GitHub issue number> (for example, IEMP-42).
+        For checklist tasks, use IEMP-42-T1, IEMP-42-T2, and so on. Do not renumber task IDs.
+        See CONTRIBUTING.md for branch and commit conventions.
+  - type: dropdown
+    id: workstream
+    attributes:
+      label: Workstream
+      description: Select the primary workstream; describe dependencies in the scope.
+      options:
+        - firmware
+        - gateway
+        - backend
+        - frontend
+        - simulator
+        - infra
+        - docs
+        - tests
+        - repo
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Goal and scope
+      description: Describe the outcome, affected workstreams, and dependencies.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List observable conditions that establish completion.
+      placeholder: "- [ ] Expected outcome"
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation plan
+      description: Explain how completion will be checked.
+    validations:
+      required: true
+  - type: textarea
+    id: tasks
+    attributes:
+      label: Checklist tasks
+      description: Optional. Add stable task IDs after the issue number is assigned.
+      placeholder: "- [ ] IEMP-42-T1: Describe the first task."
