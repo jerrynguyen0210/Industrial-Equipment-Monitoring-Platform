@@ -1,0 +1,113 @@
+name: iemp
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  stop_grace_period: 20s
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  postgres:
+    <<: *service-defaults
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-iemp}
+      POSTGRES_USER: ${POSTGRES_USER:-iemp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-iemp-local-only}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    cpus: 1.0
+    mem_limit: 512m
+
+  mosquitto:
+    <<: *service-defaults
+    image: eclipse-mosquitto:2@sha256:38c0da4f2ef84284d47b3b3eeea1cb3bdeabe81ee10caf0cd5c5ff61ee3ea408
+    ports:
+      - "${MQTT_BIND_ADDRESS:-127.0.0.1}:${MQTT_PORT:-1883}:1883"
+    volumes:
+      - type: bind
+        source: ./infra/mosquitto/mosquitto.conf
+        target: /mosquitto/config/mosquitto.conf
+        read_only: true
+        bind:
+          create_host_path: false
+      - mosquitto_data:/mosquitto/data
+    networks:
+      - platform
+    healthcheck:
+      test: ["CMD", "mosquitto_pub", "-h", "127.0.0.1", "-t", "_health/mosquitto", "-m", "ready", "-q", "1", "-W", "3"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    cpus: 0.5
+    mem_limit: 128m
+
+  backend:
+    <<: *service-defaults
+    build:
+      context: ./backend
+    init: true
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: ${POSTGRES_DB:-iemp}
+      PGUSER: ${POSTGRES_USER:-iemp}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-iemp-local-only}
+    ports:
+      - "${BACKEND_BIND_ADDRESS:-127.0.0.1}:${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - database
+      - platform
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/ready', timeout=4)"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    cpus: 1.0
+    mem_limit: 256m
+
+  frontend:
+    <<: *service-defaults
+    build:
+      context: ./frontend
+    ports:
+      - "${FRONTEND_BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-8080}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - platform
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    cpus: 0.5
+    mem_limit: 128m
+
+volumes:
+  postgres_data:
+  mosquitto_data:
+
+networks:
+  database:
+    internal: true
+  platform:
+    driver: bridge

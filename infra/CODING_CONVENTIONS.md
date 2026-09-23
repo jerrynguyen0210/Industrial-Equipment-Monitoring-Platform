@@ -1,8 +1,9 @@
 # Infrastructure Coding Conventions
 
 Development rules for environment configuration, provisioning, deployment,
-automation, and recovery. These are implementation expectations; no deployment
-tooling or automated infrastructure checks are currently configured.
+automation, and recovery. Local Docker Compose setup and validation are documented
+in [README.md](README.md). Deployed-environment controls below remain implementation
+expectations until their supporting work is completed.
 
 ## 1. Scope and shared rules
 

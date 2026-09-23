@@ -1,8 +1,9 @@
 # Shared Testing Coding Conventions
 
 Development rules for contract, integration, end-to-end, reliability, and
-acceptance tests spanning workstreams. These are implementation expectations;
-no shared test runner or automated suite is currently configured.
+acceptance tests spanning workstreams. The current Compose smoke suite is
+documented in [README.md](README.md). The broader acceptance scenarios below remain
+implementation expectations until the corresponding workstreams are implemented.
 
 ## 1. Scope and shared rules
 

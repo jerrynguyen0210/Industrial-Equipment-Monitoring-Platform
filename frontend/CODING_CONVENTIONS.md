@@ -1,8 +1,9 @@
 # Frontend Coding Conventions
 
 Development rules for dashboards, telemetry history, and operator workflows.
-These are implementation expectations; no frontend implementation or automated
-checks are currently present.
+The current React/TypeScript implementation displays local service status. See
+[README.md](README.md) for its toolchain and executable checks; the broader
+monitoring workflows below remain implementation expectations.
 
 ## 1. Scope and shared rules
 

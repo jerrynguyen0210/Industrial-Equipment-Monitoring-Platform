@@ -3,10 +3,9 @@
 Development rules for telemetry ingestion, persistence, APIs, and equipment
 monitoring. Read this guide before adding or changing backend code.
 
-The backend is currently a scaffold. These are implementation expectations;
-they do not imply that a runtime, database, protocol, or automated check already
-exists. Add language-specific rules and verified commands when the stack is
-selected.
+The backend currently provides a FastAPI health API backed by PostgreSQL. See
+[README.md](README.md) for the Python toolchain and executable checks. The wider
+domain, security, and reliability rules below remain implementation expectations.
 
 ## 1. Scope and shared rules
 
