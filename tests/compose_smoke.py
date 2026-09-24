@@ -79,10 +79,15 @@ def main() -> None:
                     return response.status, response.read().decode()
             except urllib.error.HTTPError as error:
                 return error.code, error.read().decode()
+            except urllib.error.URLError as error:
+                # The container may be healthy while Docker is still wiring the
+                # published host port after a down/up cycle.
+                raise ConnectionError(f"HTTP endpoint not accepting connections: {address}") from error
 
-        def wait_ready(address: str) -> None:
-            deadline = time.monotonic() + 45
+        def wait_ready(address: str, timeout: float = 45) -> None:
+            deadline = time.monotonic() + timeout
             last_result = "No response"
+
             while time.monotonic() < deadline:
                 try:
                     status, body = request(address)
@@ -92,9 +97,11 @@ def main() -> None:
                         "database": "ok",
                     }:
                         return
-                except (OSError, ValueError) as error:
+                except (ConnectionError, OSError, ValueError) as error:
                     last_result = type(error).__name__
+
                 time.sleep(0.5)
+
             raise AssertionError(f"Readiness timed out: {last_result}")
 
         def sql(query: str) -> str:
@@ -263,8 +270,16 @@ def main() -> None:
             try:
                 print(compose("ps", "--all"))
             finally:
-                print(f"Removing isolated project {project} and its test volumes")
-                compose("down", "--volumes", "--remove-orphans", "--timeout", "20")
+                compose("down", "--timeout", "20")
+                compose("up", "--wait", "--wait-timeout", "120")
+
+                # Resolve the newly allocated host port only after recreation.
+                frontend_ready = url("frontend", 8080, "/api/health/ready")
+                wait_ready(frontend_ready, timeout=60)
+
+                require(sql("SELECT value FROM compose_smoke") == marker, "SQL data lost")
+                require(retained(topic) == marker + "-outage", "MQTT retained data lost")
+                print("PASS: both named volumes survive down/up", flush=True)
 
 
 if __name__ == "__main__":
