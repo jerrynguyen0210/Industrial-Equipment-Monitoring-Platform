@@ -147,6 +147,36 @@ def main() -> None:
             if not condition:
                 raise AssertionError(message)
 
+        def show_health_checks() -> None:
+            for service in ("postgres", "mosquitto", "backend", "frontend"):
+                try:
+                    container_id = compose("ps", "--all", "-q", service)
+                    if not container_id:
+                        continue
+                    result = subprocess.run(
+                        [
+                            "docker",
+                            "inspect",
+                            "--format",
+                            "{{json .State.Health}}",
+                            container_id,
+                        ],
+                        check=True,
+                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
+                        capture_output=True,
+                        timeout=10,
+                    )
+                    health = json.loads(result.stdout)
+                    if health:
+                        print(f"{service} health: {health['Status']}")
+                        for check in health.get("Log", [])[-3:]:
+                            output = check.get("Output", "").strip()
+                            print(f"  exit {check['ExitCode']}: {output[:1000]}")
+                except (subprocess.SubprocessError, ValueError, KeyError) as error:
+                    print(f"Could not inspect {service} health: {type(error).__name__}")
+
         try:
             print(f"Starting isolated project {project}", flush=True)
             compose("config", "--quiet")
@@ -223,6 +253,7 @@ def main() -> None:
             if isinstance(error, subprocess.CalledProcessError):
                 print(error.stdout or "")
                 print(error.stderr or "")
+            show_health_checks()
             try:
                 print(compose("logs", "--no-color", "--tail", "60"))
             except subprocess.SubprocessError:
