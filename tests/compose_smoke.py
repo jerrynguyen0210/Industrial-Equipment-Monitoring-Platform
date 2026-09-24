@@ -125,8 +125,6 @@ def main() -> None:
                 "-r",
                 "-q",
                 "1",
-                "-W",
-                "5",
             )
 
         def retained(topic: str) -> str:
