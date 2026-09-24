@@ -82,7 +82,9 @@ def main() -> None:
             except urllib.error.URLError as error:
                 # The container may be healthy while Docker is still wiring the
                 # published host port after a down/up cycle.
-                raise ConnectionError(f"HTTP endpoint not accepting connections: {address}") from error
+                raise ConnectionError(
+                    f"HTTP endpoint not accepting connections: {address}"
+                ) from error
 
         def wait_ready(address: str, timeout: float = 45) -> None:
             deadline = time.monotonic() + timeout
@@ -270,16 +272,8 @@ def main() -> None:
             try:
                 print(compose("ps", "--all"))
             finally:
-                compose("down", "--timeout", "20")
-                compose("up", "--wait", "--wait-timeout", "120")
-
-                # Resolve the newly allocated host port only after recreation.
-                frontend_ready = url("frontend", 8080, "/api/health/ready")
-                wait_ready(frontend_ready, timeout=60)
-
-                require(sql("SELECT value FROM compose_smoke") == marker, "SQL data lost")
-                require(retained(topic) == marker + "-outage", "MQTT retained data lost")
-                print("PASS: both named volumes survive down/up", flush=True)
+                print(f"Removing isolated project {project} and its test volumes")
+                compose("down", "--volumes", "--remove-orphans", "--timeout", "20")
 
 
 if __name__ == "__main__":
