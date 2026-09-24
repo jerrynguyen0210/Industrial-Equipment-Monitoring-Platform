@@ -5,8 +5,10 @@ gateway and backend, and presenting equipment status in a monitoring interface.
 
 ## Project status
 
-Repository scaffolding is in place. Application code, runtime choices, deployment
-targets, and executable setup commands are still to be defined.
+The local platform runs PostgreSQL, Mosquitto, a FastAPI health API, and a
+React/TypeScript service-status page with Docker Compose. Telemetry ingestion,
+equipment dashboards, the gateway, and firmware remain separate implementation
+workstreams.
 
 ## Repository structure
 
@@ -26,36 +28,85 @@ tests spanning multiple workstreams belong in `tests/`.
 
 ## Planned data flow
 
-Devices (or the simulator) send telemetry through the gateway to the backend.
-The frontend reads equipment status through backend APIs. Protocols, schemas,
-and deployment boundaries will be documented in `docs/` before integration.
+Devices (or the simulator) publish to local Mosquitto. The native gateway will
+buffer readings in SQLite and forward HTTP batches to the backend. The frontend
+uses backend APIs; the backend owns PostgreSQL access. Stopping the backend does
+not stop Mosquitto. See the [architecture references](docs/README.md).
 
 ## Getting started
 
-1. Read [CONTRIBUTING.md](CONTRIBUTING.md) for issue IDs, branches, and commits.
-2. Select a workstream and read its directory README.
-3. Create or select a GitHub issue before implementation.
-4. Add prerequisites and verified setup commands to the workstream README when
-   its runtime is introduced.
+From the repository root:
+
+```sh
+docker compose up
+```
+
+Open **http://localhost:8080**. The page reports whether the backend can query
+PostgreSQL. First startup downloads images and builds both applications; no
+manual database initialization or `.env` file is required.
 
 ### Prerequisites
 
-TODO: Document supported toolchains and versions for each workstream.
+Docker Engine with Docker Compose v2.24+ (including newer versions), or Docker
+Desktop running Linux containers. The Docker daemon must be running. Allow about
+2 GB of memory for these services, plus image-build overhead, and free host ports
+8080, 8000, and 1883. Native Python/Node toolchains are only needed when working
+outside the application containers.
 
 ### Local development
 
-TODO: Document environment configuration and commands for starting the platform.
-Commit sanitized `.env.example` files when configuration is introduced.
+Defaults bind published ports to loopback and are for local development with
+synthetic data. Optional overrides are listed in [.env.example](.env.example);
+copy it to `.env` only when changing defaults.
+
+Service examples are available for [backend](backend/.env.example),
+[frontend](frontend/.env.example), [gateway](gateway/.env.example), and
+[simulator](simulator/.env.example). The [configuration guide](docs/configuration.md)
+explains which files are loaded, local addresses, and credential placeholders.
+
+| Service | Host address |
+| --- | --- |
+| Frontend | http://localhost:8080 |
+| Backend liveness | http://localhost:8000/health |
+| Backend database readiness | http://localhost:8000/ready |
+| MQTT | `127.0.0.1:1883` |
+| PostgreSQL | Internal only; use `docker compose exec postgres ...`. |
+
+```sh
+docker compose up -d --wait  # Start in the background and wait for health checks.
+docker compose ps
+docker compose logs -f
+docker compose up --build   # Rebuild after application changes.
+docker compose down         # Remove containers; retain named data volumes.
+```
+
+Gateway and firmware are intentionally outside Compose so native builds, serial
+debugging, flashing, and the gateway's local SQLite queue remain independent.
+See [infra/README.md](infra/README.md) for hardware connectivity, configuration,
+storage, independent service lifecycles, and troubleshooting.
 
 ### Testing
 
-TODO: Add verified commands for unit, integration, and end-to-end tests. No test
-runner or automated checks are configured yet.
+```sh
+docker compose config --quiet
+python tests/compose_smoke.py
+```
+
+The smoke test requires Python 3.13+ and Docker. It creates a separate temporary
+Compose project, exercises startup, API routing, MQTT, outages, and persistence,
+then removes only its own test resources. See [tests/README.md](tests/README.md)
+and the workstream READMEs for unit, formatting, and build checks. The
+[local platform workflow](.github/workflows/local-platform.yml) runs these checks
+on every push and pull request, alongside backend lint/tests and frontend
+formatting/type checks, component tests, and a production build. A native gateway
+build activates when its CMake project exists. See the [CI guide](docs/ci.md)
+for dependency caching, failure handling, and local reproduction.
 
 ### Deployment
 
-TODO: Document deployment targets, provisioning, and rollback in `infra/` and
-`docs/`.
+This Compose stack is a local development environment. Deployed TLS, application
+authentication, device credentials, database migrations, and backup/restore
+automation remain future work. See the [local platform decision record](docs/local-platform.md).
 
 ## Contributing
 
@@ -64,6 +115,18 @@ Use issue IDs such as `IEMP-42`, branches such as
 `feat(backend): add telemetry ingestion [IEMP-42]`.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete conventions.
+
+Read the conventions guide for the workstream you are changing:
+
+| Workstream | Guide |
+| --- | --- |
+| Firmware | [Firmware Coding Conventions](firmware/CODING_CONVENTIONS.md) |
+| Gateway | [Gateway Coding Conventions](gateway/CODING_CONVENTIONS.md) |
+| Backend | [Backend Coding Conventions](backend/CODING_CONVENTIONS.md) |
+| Frontend | [Frontend Coding Conventions](frontend/CODING_CONVENTIONS.md) |
+| Simulator | [Simulator Coding Conventions](simulator/CODING_CONVENTIONS.md) |
+| Infrastructure | [Infrastructure Coding Conventions](infra/CODING_CONVENTIONS.md) |
+| Shared tests | [Shared Testing Coding Conventions](tests/CODING_CONVENTIONS.md) |
 
 ## License
 
