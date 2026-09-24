@@ -224,6 +224,8 @@ def main() -> None:
             require(request(frontend)[0] == 200, "Frontend stopped with backend")
             require(request(ready)[0] == 502, "Proxy concealed a backend outage")
             compose("up", "--wait", "--wait-timeout", "60", "backend")
+            backend_ready = url("backend", 8000, "/ready")
+            live = url("backend", 8000, "/health")
             wait_ready(ready)
             print("PASS: MQTT and frontend survive backend outage", flush=True)
 
