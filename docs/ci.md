@@ -12,7 +12,7 @@ prevent the other jobs from producing useful results.
 
 | Check | Verification | Runtime and limit |
 | --- | --- | --- |
-| Backend lint and tests | Hash-locked development dependency install, Ruff lint and format checks, all discovered backend unit tests. Python lint also covers the Compose smoke script. | Python 3.13; 10 minutes. |
+| Backend lint and tests | Hash-locked dependencies, Ruff lint/format, database-free unit tests, and registry migration/constraint/seed tests against a PostgreSQL 17 service. Python lint also covers the Compose smoke script. | Python 3.13; 10 minutes. |
 | Frontend checks, tests, and build | `npm ci`, TypeScript and Prettier checks, `npm test`, production build. | Node.js 24; 10 minutes. |
 | Compose integration | Compose configuration validation and the isolated smoke suite against actual backend/frontend images, PostgreSQL, and Mosquitto. | Python 3.13 and Docker Compose; 20 minutes. |
 | Gateway build (when implemented) | CMake Release configuration and C++17 compilation when `gateway/CMakeLists.txt` exists. | Runner CMake and C++ compiler; 10 minutes. |
@@ -41,6 +41,11 @@ dependencies and actual gateway tests in the same change.
 - The Compose job builds the committed Dockerfiles and uses the smoke suite's
   temporary project, synthetic credentials, ephemeral ports, and cleanup.
   Container layer caching across workflow runs is not configured.
+- Backend integration tests create and drop only a uniquely named database on the
+  job's disposable PostgreSQL service. The explicit `REGISTRY_TEST_DATABASE_URL`
+  uses synthetic CI credentials; no application environment or external server
+  is used. The suite verifies up/down/up, duplicate device IDs, relationships,
+  enabled-state ownership checks, and transactional, repeatable seeding.
 
 Cache support follows the official [setup-python documentation](https://github.com/actions/setup-python#caching-packages-dependencies)
 and [setup-node documentation](https://github.com/actions/setup-node#caching-global-packages-data).
@@ -53,6 +58,8 @@ or hardware. The workflow requests only `contents: read` token permissions.
 Start from a clean checkout with Python 3.13 and Node.js 24.15+ (below 25). Follow the
 [backend setup and validation commands](../backend/README.md#setup-and-validation)
 to install locked dependencies and run Ruff and unittest.
+The separate registry integration command and PostgreSQL prerequisites are in
+the [backend development checks](../backend/README.md#development-checks).
 
 In `frontend/`, run:
 

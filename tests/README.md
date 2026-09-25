@@ -19,7 +19,12 @@ test subdirectories here as suites are introduced.
 ## Setup and validation
 
 The local-platform smoke suite uses Python 3.13+ standard-library tools and Docker
-Compose v2.24+. From the repository root with Docker running:
+Compose v2.24+.
+
+For Windows PowerShell, see the [step-by-step Docker testing guide](../docs/docker-testing.md),
+including Docker CLI discovery and running registry tests inside the backend image.
+
+From the repository root with Docker running:
 
 ```sh
 docker compose config --quiet
@@ -34,18 +39,27 @@ It verifies:
   documented JSON, and the frontend can reach `/api/health/ready` through its
   same-origin proxy.
 - PostgreSQL queries, MQTT publish/subscribe, and the published host MQTT port work.
+- The backend image can apply its Alembic migration and run the registry seed
+  twice, producing the expected enabled site/gateway/device hierarchy.
 - Mosquitto and frontend remain available while the backend is stopped.
 - Database failure returns readiness HTTP 503 with structured JSON through both
   the backend and frontend proxy while `/health` remains 200, and readiness
   recovers after PostgreSQL returns.
 - The frontend proxy recovers after backend container recreation.
-- SQL data and retained MQTT messages survive `down` followed by `up`.
+- SQL data, the seeded registry, and retained MQTT messages survive `down` followed
+  by `up`.
 
 Cleanup removes only the generated project's containers, networks, and test
 volumes, including on ordinary failures. Abruptly killing Python can leave a test
 project behind; inspect `docker compose ls --all` and use its exact generated
 project name when cleaning it up. No hardware or native gateway is exercised.
 This is infrastructure evidence, not ingestion, queue durability, or MVP acceptance.
+
+Registry migration/constraint acceptance tests live in
+[`backend/tests/integration/`](../backend/tests/integration/test_registry.py).
+They use an explicit `REGISTRY_TEST_DATABASE_URL`, create a separate database for
+each suite run, and cover up/down/up, duplicate device IDs, foreign keys, enabled
+states, and repeatable seeding. See the [backend guide](../backend/README.md#development-checks).
 
 The [local platform workflow](../.github/workflows/local-platform.yml) runs these
 checks in a separate job alongside backend lint/tests and frontend

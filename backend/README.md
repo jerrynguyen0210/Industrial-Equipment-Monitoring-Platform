@@ -9,7 +9,8 @@ telemetry integrity, API contracts, persistence, security, testing, and operatio
 
 ## Setup and validation
 
-The bootstrap uses Python 3.13, FastAPI, Uvicorn, psycopg, and PostgreSQL 17.
+The backend uses Python 3.13, FastAPI, Uvicorn, SQLAlchemy 2, Alembic, psycopg,
+and PostgreSQL 17.
 Runtime and development dependencies are hash-locked in `requirements.txt` and
 `requirements-dev.txt`; source pins are in the corresponding `.in` files.
 
@@ -32,12 +33,56 @@ password (port defaults to 5432). A nonempty URL takes precedence over `PGHOST`,
 `PGPORT`, `PGDATABASE`, `PGUSER`, and `PGPASSWORD`; all five `PG*` settings are
 required when the URL is empty/unset. Compose supplies the local `PG*` defaults.
 Invalid configuration fails startup without printing credentials.
-Connection timeout is three seconds; statement timeout is two
-seconds. Readiness reconnects on each request, so a recovered database requires
+The readiness probe's connection timeout is three seconds; its statement timeout
+is two seconds. Readiness reconnects on each request, so a recovered database requires
 no API restart. Container health uses readiness; liveness remains independent.
 
-No domain tables, migrations, authentication, or ingestion endpoint are included
-in this infrastructure bootstrap. Health responses do not acknowledge telemetry.
+The [minimum registry](../docs/registry.md) persists sites, gateways, and devices
+with enabled states, foreign keys, and globally unique device IDs. Alembic owns
+schema changes; demo data is inserted only by the explicit seed command below.
+Authentication and telemetry ingestion are separate workstreams. Health responses
+do not acknowledge telemetry, and readiness still checks connectivity only.
+
+## Registry migrations and demo seed
+
+From the repository root, using the backend image and Compose's database settings:
+
+```sh
+docker compose up -d --build --wait
+docker compose exec backend python -m alembic upgrade head
+docker compose exec backend python -m app.seed
+docker compose exec backend python -m alembic current
+```
+
+This persists `site-demo-001` -> `gateway-demo-001` -> `device-demo-001` in the
+PostgreSQL named volume. Repeat seeding preserves names, enabled states, and
+existing ownership; a conflicting parent assignment fails and rolls back the
+whole seed. Migration and seed are explicit deployment steps, never API startup
+side effects. Run migrations once before enabling a registry consumer.
+
+For a native database, export `DATABASE_URL` or all five `PG*` settings into the
+shell, then run from `backend/`:
+
+```sh
+python -m alembic upgrade head
+python -m app.seed
+python -m alembic check
+```
+
+Alembic and the seed command do not load `.env` automatically. Unlike Uvicorn,
+they require exported shell variables. URL precedence and escaping follow the
+[configuration guide](../docs/configuration.md). To inspect SQL without connecting:
+
+```sh
+python -m alembic upgrade head --sql
+```
+
+On a disposable database, `python -m alembic downgrade base` removes the registry
+tables **and their rows**. Back up real data before any destructive rollback;
+reapplying `upgrade head` recreates an empty schema, not the deleted rows. See the
+[registry runbook](../docs/registry.md) for recovery and ownership semantics.
+
+## Development checks
 
 For development checks, create a virtual environment and activate it using your
 shell's normal activation command. With Python 3.13+:
@@ -54,10 +99,29 @@ python -m unittest discover -s tests -v
 ```
 
 The [CI workflow](../.github/workflows/local-platform.yml) runs the same lint,
-formatting, and test commands on Python 3.13 for every push and pull request.
+formatting, and unit test commands on Python 3.13 for every push and pull request,
+plus the PostgreSQL acceptance suite below.
 The pip download cache is keyed by the committed requirements lockfiles; each
 run still installs with `--require-hashes`. Unit tests supply their own synthetic
 configuration and need no running PostgreSQL. See the [CI guide](../docs/ci.md).
+
+The separate integration suite requires a PostgreSQL test server and a role with
+`CREATEDB`. `REGISTRY_TEST_DATABASE_URL` is an explicit maintenance connection;
+the suite creates a randomly named database, applies migrations and test data
+there, then drops only that database. It never migrates or seeds the maintenance
+database and never falls back to the application's `DATABASE_URL`.
+
+```powershell
+# From backend/, with a dedicated test server (synthetic local credentials).
+$env:REGISTRY_TEST_DATABASE_URL = 'postgresql://registry_test:registry-test-only@127.0.0.1:5432/postgres'
+python -m unittest discover -s tests/integration -v
+```
+
+For POSIX shells, use `export REGISTRY_TEST_DATABASE_URL='postgresql://...'`.
+Missing test configuration fails explicitly. The suite covers up/down/up,
+model/migration agreement, duplicate and concurrent device registration,
+relationships, required values, disabled ancestors, repeatable/concurrent seed,
+conflict rollback, and the actual migration/seed CLI commands.
 
 To run the API natively, install the development dependencies above, then run
 from `backend/`. Copy the example once and edit `DATABASE_URL` to match a

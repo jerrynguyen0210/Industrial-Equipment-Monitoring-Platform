@@ -10,7 +10,7 @@ local copy. Do not overwrite an existing `.env` when refreshing examples.
 | Example | Consumer | Loading and precedence |
 | --- | --- | --- |
 | [Root](../.env.example) | Compose: PostgreSQL, backend, frontend build, broker publishing | Shell variables override root `.env`, then Compose defaults. A chosen `--env-file` replaces the default file. |
-| [Backend](../backend/.env.example) | Native Uvicorn | Explicit `--env-file .env` from `backend/`; shell variables win. Nonempty `DATABASE_URL` wins over `PG*`. |
+| [Backend](../backend/.env.example) | Native Uvicorn; reference for Alembic/seed | Uvicorn explicitly loads `--env-file .env` from `backend/`; shell variables win. Alembic/seed use exported shell variables only. Nonempty `DATABASE_URL` wins over `PG*`. |
 | [Frontend](../frontend/.env.example) | Native Vite | Shell wins, then mode-specific `.env.[mode].local` / `.env.[mode]`, then `.env.local` / `.env`, then code defaults. |
 | [Gateway](../gateway/.env.example) | Planned native gateway | Template only; runtime/env loading and credential validation are not implemented. |
 | [Simulator](../simulator/.env.example) | Planned simulator | Template only; runtime/env loading and API-only mode are not implemented. |

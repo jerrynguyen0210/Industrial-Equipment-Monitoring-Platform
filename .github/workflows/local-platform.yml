@@ -13,6 +13,20 @@ jobs:
     name: Backend lint and tests
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+        env:
+          POSTGRES_USER: registry_test
+          POSTGRES_PASSWORD: registry-test-only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U registry_test -d postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -31,6 +45,11 @@ jobs:
       - name: Run backend tests
         working-directory: backend
         run: python -m unittest discover -s tests -v
+      - name: Verify registry against PostgreSQL
+        working-directory: backend
+        env:
+          REGISTRY_TEST_DATABASE_URL: postgresql://registry_test:registry-test-only@127.0.0.1:5432/postgres
+        run: python -m unittest discover -s tests/integration -v
 
   frontend:
     name: Frontend checks, tests, and build

@@ -9,6 +9,8 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir --require-hashes -r requirements.txt \
     && useradd --uid 10001 --create-home app
 COPY app ./app
+COPY alembic.ini ./
+COPY migrations ./migrations
 USER 10001:10001
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-graceful-shutdown", "15"]

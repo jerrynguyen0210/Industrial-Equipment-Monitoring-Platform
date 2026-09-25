@@ -212,6 +212,22 @@ def main() -> None:
                 pass
             marker = secrets.token_hex(12)
             topic = "iemp/smoke/persistence"
+            compose(
+                "exec", "-T", "backend", "python", "-m", "alembic", "upgrade", "head"
+            )
+            for _ in range(2):
+                compose("exec", "-T", "backend", "python", "-m", "app.seed")
+            registry_query = (
+                "SELECT d.device_id FROM devices d "
+                "JOIN gateways g ON g.gateway_id = d.gateway_id "
+                "JOIN sites s ON s.site_id = g.site_id "
+                "WHERE d.device_id = 'device-demo-001' "
+                "AND g.gateway_id = 'gateway-demo-001' "
+                "AND s.site_id = 'site-demo-001' "
+                "AND d.enabled AND g.enabled AND s.enabled"
+            )
+            require(sql(registry_query) == "device-demo-001", "Registry seed failed")
+            print("PASS: packaged migration and repeatable registry seed", flush=True)
             sql("CREATE TABLE compose_smoke (value text NOT NULL)")
             sql(f"INSERT INTO compose_smoke VALUES ('{marker}')")
             publish(topic, marker)
@@ -257,6 +273,7 @@ def main() -> None:
             compose("up", "--wait", "--wait-timeout", "120")
             wait_ready(url("frontend", 8080, "/api/health/ready"))
             require(sql("SELECT value FROM compose_smoke") == marker, "SQL data lost")
+            require(sql(registry_query) == "device-demo-001", "Registry data lost")
             require(retained(topic) == marker + "-outage", "MQTT retained data lost")
             print("PASS: both named volumes survive down/up", flush=True)
         except Exception as error:

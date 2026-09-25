@@ -9,8 +9,10 @@ and the component boundaries in the [architecture decision package](Technical_Le
 
 The backend currently exposes health endpoints and the frontend displays their
 result. This makes container startup and browser-to-API-to-database connectivity
-reviewable before application features arrive. It does not implement the approved
-telemetry ingestion contract, migrations, registry, authentication, or alerts.
+reviewable before application features arrive. The backend also includes a
+[minimum persisted registry](registry.md), explicit Alembic migrations, and a demo
+seed command. It does not implement the approved telemetry ingestion contract,
+authentication, or alerts.
 No demo readings or successful ingestion responses are fabricated.
 
 The backend depends on PostgreSQL only. It does not consume device MQTT; the
@@ -35,8 +37,9 @@ outside Compose. A full-stack shutdown intentionally stops the development broke
 - Permit local-only development credentials, HTTP, and anonymous MQTT so a clean
   checkout starts with one command. These are explicitly scoped development
   exceptions, not a change to deployed TLS or authentication requirements.
-- Use a single local database owner during the health-only bootstrap. Application
-  migrations and a least-privilege runtime role belong with persistence work.
+- Use a single local database owner for development. Registry migrations are
+  explicit deployment commands; separate migration/runtime roles for deployed
+  environments remain an infrastructure provisioning task.
 
 ## Evidence and boundaries
 
