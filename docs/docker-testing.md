@@ -66,7 +66,7 @@ docker compose exec -T backend python -m alembic check
 ```
 
 All four services should be healthy. The migration revision should be
-`0001_registry (head)`, and `alembic check` should report no new upgrade operations.
+`0002_telemetry (head)`, and `alembic check` should report no new upgrade operations.
 The second seed must succeed without duplicating or re-enabling existing records.
 
 ```powershell
@@ -94,11 +94,15 @@ docker compose run --rm --no-deps `
   backend python -m unittest discover -s tests/integration -v
 ```
 
-Expected: `Ran 11 tests` and `OK`. This verifies migration up/down/up, duplicate
-IDs within/across gateways, concurrent registration, foreign keys, required
-values, enabled states, seed repeatability/concurrency, and seed-conflict rollback.
-It creates and removes a uniquely named test database; it does not downgrade or
-clear your demo database. The URL above contains only the committed local defaults.
+Expected: the registry and telemetry suites finish with `OK`. They verify
+migration up/down/up, duplicate IDs within/across gateways, concurrent registration,
+foreign keys, required values, enabled states, seed repeatability/concurrency,
+and seed-conflict rollback.
+Telemetry checks also cover event identity conflicts/concurrency, UTC timestamps,
+nullable measurement time, receipt defaults, and device/time queries.
+Each suite creates and removes its own uniquely named database; it does not
+downgrade or clear your demo database. The URL above contains only the committed
+local defaults.
 
 For a manual duplicate check against the seeded demo:
 

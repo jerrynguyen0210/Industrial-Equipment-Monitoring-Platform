@@ -16,6 +16,7 @@ class DatabaseEngineTests(unittest.TestCase):
                     "DATABASE_URL": (
                         "postgresql://local:p%25%40ss%3Aword@db:5433/registry"
                         "?sslmode=require&application_name=registry"
+                        "&options=-c%20timezone%3DAustralia%2FAdelaide"
                     ),
                     "PGHOST": "wrong-host",
                 },
@@ -33,6 +34,10 @@ class DatabaseEngineTests(unittest.TestCase):
         self.assertEqual(settings["sslmode"], "require")
         self.assertEqual(settings["application_name"], "registry")
         self.assertEqual(settings["connect_timeout"], "3")
+        self.assertTrue(
+            settings["options"].startswith("-c timezone=Australia/Adelaide ")
+        )
+        self.assertTrue(settings["options"].endswith("-c timezone=UTC"))
 
     def test_pg_settings_preserve_unescaped_password(self) -> None:
         with (

@@ -45,7 +45,7 @@ jobs:
       - name: Run backend tests
         working-directory: backend
         run: python -m unittest discover -s tests -v
-      - name: Verify registry against PostgreSQL
+      - name: Verify registry and telemetry against PostgreSQL
         working-directory: backend
         env:
           REGISTRY_TEST_DATABASE_URL: postgresql://registry_test:registry-test-only@127.0.0.1:5432/postgres

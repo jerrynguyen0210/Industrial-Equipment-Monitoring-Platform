@@ -29,6 +29,8 @@ The [health API contract](health-api.md) defines backend liveness, database
 readiness, response schemas, and dependency failure behavior for local integration.
 The [minimum registry](registry.md) documents site/gateway/device ownership,
 enabled states, PostgreSQL constraints, migrations, demo seeding, and verification.
+The [telemetry storage schema](telemetry-storage.md) documents v1 fields, event
+identity uniqueness, UTC timestamps, device/time indexes, and migration recovery.
 The [Windows Docker testing guide](docker-testing.md) gives PowerShell commands
 for automated smoke tests, registry acceptance, and manual database inspection.
 The [CI guide](ci.md) documents automatic verification on every push and pull

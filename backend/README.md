@@ -40,6 +40,9 @@ no API restart. Container health uses readiness; liveness remains independent.
 The [minimum registry](../docs/registry.md) persists sites, gateways, and devices
 with enabled states, foreign keys, and globally unique device IDs. Alembic owns
 schema changes; demo data is inserted only by the explicit seed command below.
+The [telemetry storage schema](../docs/telemetry-storage.md) adds all v1 contract
+fields, database-generated backend receipt time, UTC timestamps, nullable
+measurement time, unique event identity, and device/time indexes.
 Authentication and telemetry ingestion are separate workstreams. Health responses
 do not acknowledge telemetry, and readiness still checks connectivity only.
 
@@ -58,7 +61,9 @@ This persists `site-demo-001` -> `gateway-demo-001` -> `device-demo-001` in the
 PostgreSQL named volume. Repeat seeding preserves names, enabled states, and
 existing ownership; a conflicting parent assignment fails and rolls back the
 whole seed. Migration and seed are explicit deployment steps, never API startup
-side effects. Run migrations once before enabling a registry consumer.
+side effects. Run migrations once before enabling a registry or telemetry consumer.
+The current head is `0002_telemetry`; this adds telemetry to an existing registry
+without changing its registrations.
 
 For a native database, export `DATABASE_URL` or all five `PG*` settings into the
 shell, then run from `backend/`:
@@ -77,10 +82,12 @@ they require exported shell variables. URL precedence and escaping follow the
 python -m alembic upgrade head --sql
 ```
 
-On a disposable database, `python -m alembic downgrade base` removes the registry
-tables **and their rows**. Back up real data before any destructive rollback;
+On a disposable database, `python -m alembic downgrade base` removes telemetry
+and registry tables **and their rows**. Back up real data before destructive rollback;
 reapplying `upgrade head` recreates an empty schema, not the deleted rows. See the
 [registry runbook](../docs/registry.md) for recovery and ownership semantics.
+To remove only telemetry on a disposable database, downgrade to `0001_registry`;
+see the [telemetry recovery instructions](../docs/telemetry-storage.md#apply-and-recover).
 
 ## Development checks
 
@@ -121,7 +128,10 @@ For POSIX shells, use `export REGISTRY_TEST_DATABASE_URL='postgresql://...'`.
 Missing test configuration fails explicitly. The suite covers up/down/up,
 model/migration agreement, duplicate and concurrent device registration,
 relationships, required values, disabled ancestors, repeatable/concurrent seed,
-conflict rollback, and the actual migration/seed CLI commands.
+conflict rollback, and the actual migration/seed CLI commands. It also checks
+telemetry identity uniqueness under concurrent writes, nullable measurement time,
+UTC conversion, server-generated receipt time, contract checks, indexed queries,
+and telemetry rollback without losing registry data.
 
 To run the API natively, install the development dependencies above, then run
 from `backend/`. Copy the example once and edit `DATABASE_URL` to match a

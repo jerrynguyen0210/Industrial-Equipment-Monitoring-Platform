@@ -57,8 +57,9 @@ transaction coordination if assignment or enabled state can change during a writ
 Revision `0001_registry` creates sites, then gateways, then devices and indexes.
 Alembic uses `app.config.database_conninfo()` through the SQLAlchemy engine:
 nonempty `DATABASE_URL` wins; otherwise all five `PG*` settings are required.
-SSL and other libpq URL options are retained. Connection timeout is three seconds;
-registry statement and lock timeouts are five seconds. The pool allows up to five
+SSL and other libpq URL options are retained; SQLAlchemy sessions enforce UTC for
+[telemetry storage](telemetry-storage.md). Connection timeout is three seconds;
+statement and lock timeouts are five seconds. The pool allows up to five
 connections with a five-second checkout timeout. Credentials are absent from
 `alembic.ini`, the engine URL, and committed files.
 
@@ -70,9 +71,11 @@ Do not run competing migrations from multiple API processes. The local database
 owner remains a development convenience; deployed migration and application roles
 must be provisioned separately with appropriate privileges.
 
-Downgrade drops devices, gateways, then sites. It destroys registry data and is
-tested only in a disposable database. For an existing environment, stop registry
-writers and take a PostgreSQL backup before downgrade. If a schema operation
+Downgrade of `0001_registry` drops devices, gateways, then sites. A downgrade from
+the current head to `base` first removes telemetry in `0002_telemetry`.
+It destroys registry data and is tested only in a disposable database. For an
+existing environment, stop registry and telemetry writers and take a PostgreSQL
+backup before downgrade. If a schema operation
 fails, PostgreSQL transactional DDL rolls it back; inspect `alembic current`
 before retrying. After a completed destructive downgrade, recover data from the
 backup into a separate database and validate it before switching consumers;

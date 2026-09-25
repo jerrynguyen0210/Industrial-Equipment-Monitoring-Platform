@@ -11,7 +11,8 @@ def create_database_engine() -> Engine:
     settings = conninfo_to_dict(database_conninfo())
     settings["connect_timeout"] = "3"
     settings["options"] = (
-        settings.get("options", "") + " -c statement_timeout=5000 -c lock_timeout=5000"
+        settings.get("options", "")
+        + " -c statement_timeout=5000 -c lock_timeout=5000 -c timezone=UTC"
     ).strip()
     # Pass libpq settings directly: retain SSL/query options and encoded passwords
     # without putting credentials into Alembic's interpolated config or engine URL.

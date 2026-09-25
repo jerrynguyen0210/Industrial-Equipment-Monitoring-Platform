@@ -39,7 +39,7 @@ else:
             migrate(connection)
     except SQLAlchemyError:
         raise SystemExit(
-            "Registry migration failed; check database access and schema revision"
+            "Database migration failed; check database access and schema revision"
         ) from None
     finally:
         engine.dispose()
