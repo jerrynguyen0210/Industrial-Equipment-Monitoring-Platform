@@ -43,6 +43,8 @@ It verifies:
   twice, producing the expected enabled site/gateway/device hierarchy.
 - The API-mode simulator submits a valid batch, matching replay and mixed batch,
   and verifies independent outcomes plus database-generated receipt times.
+- Generated ramp events span three boots, preserve expected values and counters
+  in PostgreSQL, replay as duplicates, and survive stack restart.
 - Mosquitto and frontend remain available while the backend is stopped.
 - Database failure returns readiness HTTP 503 with structured JSON through both
   the backend and frontend proxy while `/health` remains 200, and readiness

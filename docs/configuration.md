@@ -13,7 +13,7 @@ local copy. Do not overwrite an existing `.env` when refreshing examples.
 | [Backend](../backend/.env.example) | Native Uvicorn; reference for Alembic/seed | Uvicorn explicitly loads `--env-file .env` from `backend/`; shell variables win. Alembic/seed use exported shell variables only. Nonempty `DATABASE_URL` wins over `PG*`. |
 | [Frontend](../frontend/.env.example) | Native Vite | Shell wins, then mode-specific `.env.[mode].local` / `.env.[mode]`, then `.env.local` / `.env`, then code defaults. |
 | [Gateway](../gateway/.env.example) | Planned native gateway | Template only; native runtime/env loading is not implemented. API bearer authentication is available. |
-| [Simulator](../simulator/.env.example) | API-only fixture sender | Reads exported `API_BASE_URL` and `GATEWAY_API_KEY`; does not load `.env`. MQTT mode remains planned. |
+| [Simulator](../simulator/.env.example) | Deterministic generator and API-only fixture sender | Reads exported `API_BASE_URL` and `GATEWAY_API_KEY`; `simulate.py --api-base-url` overrides the URL. Scenario options are CLI flags; no automatic `.env` loading. MQTT mode remains planned. |
 
 Compose does **not** automatically load service-directory `.env` files. Application
 Docker contexts use allowlists, excluding local env files and secret directories.

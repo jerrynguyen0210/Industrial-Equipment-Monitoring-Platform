@@ -19,9 +19,14 @@ class BatchConfirmationTests(unittest.TestCase):
             [accepted, accepted],
             [None],
             [accepted | {"device_id": "wrong"}],
+            [accepted | {"sequence_number": False}],
+            [accepted | {"sequence_number": 0.0}],
             [accepted | {"outcome": "unknown"}],
             [accepted | {"reason": "invalid_unit"}],
             [identity | {"outcome": "rejected"}],
         ):
             with self.subTest(results=results), self.assertRaises(ValueError):
                 classify_response([identity], {"batch_id": "b", "results": results})
+        for response in ([], None, {"batch_id": "", "results": [accepted]}):
+            with self.subTest(response=response), self.assertRaises(ValueError):
+                classify_response([identity], response)

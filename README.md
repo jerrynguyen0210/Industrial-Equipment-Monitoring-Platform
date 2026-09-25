@@ -8,7 +8,8 @@ gateway and backend, and presenting equipment status in a monitoring interface.
 The local platform runs PostgreSQL, Mosquitto, a FastAPI health and telemetry API,
 and a React/TypeScript service-status page with Docker Compose. The
 [API-mode simulator](simulator/README.md) exercises authenticated batch ingestion,
-per-item outcomes, persistence and retries. Equipment dashboards, the native
+per-item outcomes, persistence and retries, with deterministic temperature profiles,
+seeded noise, sampling intervals and simulated reboots. Equipment dashboards, the native
 gateway, and firmware remain separate implementation workstreams.
 
 ## Repository structure

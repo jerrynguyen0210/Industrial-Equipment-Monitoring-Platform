@@ -267,6 +267,70 @@ def main() -> None:
                 "PASS: simulator HTTP ingestion, retries, mixed items and persistence",
                 flush=True,
             )
+            generated_query = (
+                "SELECT json_agg(json_build_array(sequence_number, device_uptime_ms, "
+                "value) ORDER BY measured_at), count(DISTINCT boot_id) "
+                "FROM telemetry WHERE device_id = 'device-demo-001' "
+                "AND measured_at >= '2026-01-01T00:00:00Z' "
+                "AND measured_at < '2026-01-01T00:00:05Z' "
+                "AND backend_received_at IS NOT NULL "
+                "AND gateway_received_at = measured_at"
+            )
+            for outcome in ("accepted", "duplicate"):
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        str(ROOT / "simulator/simulate.py"),
+                        "--device-id",
+                        "device-demo-001",
+                        "--run-id",
+                        "compose-generated-v1",
+                        "--seed",
+                        "7",
+                        "--count",
+                        "5",
+                        "--batch-size",
+                        "2",
+                        "--reboot-every",
+                        "2",
+                        "--profile",
+                        "ramp",
+                        "--temperature",
+                        "20",
+                        "--step",
+                        "0.5",
+                        "--mode",
+                        "http",
+                        "--fast",
+                    ],
+                    env=simulator_environment,
+                    check=True,
+                    text=True,
+                    capture_output=True,
+                    timeout=40,
+                )
+                summary = json.loads(result.stdout)
+                require(
+                    summary["counts"][outcome] == 5
+                    and summary["unconfirmed"] == summary["unsent"] == 0,
+                    f"Generated scenario did not report five {outcome} events",
+                )
+            generated_rows, boot_count = sql(generated_query).rsplit("|", 1)
+            require(
+                json.loads(generated_rows)
+                == [
+                    [0, 0, 20],
+                    [1, 1000, 20.5],
+                    [0, 0, 21],
+                    [1, 1000, 21.5],
+                    [0, 0, 22],
+                ]
+                and boot_count == "3",
+                "Generated values, reboot identities or counters did not persist",
+            )
+            print(
+                "PASS: deterministic generated scenario, reboots and replay", flush=True
+            )
             sql("CREATE TABLE compose_smoke (value text NOT NULL)")
             sql(f"INSERT INTO compose_smoke VALUES ('{marker}')")
             publish(topic, marker)
@@ -314,6 +378,10 @@ def main() -> None:
             require(sql("SELECT value FROM compose_smoke") == marker, "SQL data lost")
             require(sql(registry_query) == "device-demo-001", "Registry data lost")
             require(sql(telemetry_query) == "2", "Telemetry data lost")
+            require(
+                sql(generated_query) == generated_rows + "|" + boot_count,
+                "Generated simulator telemetry lost",
+            )
             require(retained(topic) == marker + "-outage", "MQTT retained data lost")
             print("PASS: both named volumes survive down/up", flush=True)
         except Exception as error:
