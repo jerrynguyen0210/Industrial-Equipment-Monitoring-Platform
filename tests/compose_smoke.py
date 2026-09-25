@@ -44,6 +44,18 @@ def main() -> None:
     }
 
     with tempfile.TemporaryDirectory(prefix="iemp-smoke-") as directory:
+        auth_dir = Path(directory) / "mqtt-auth"
+        subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "infra/mosquitto/provision.py"),
+                "--output-dir",
+                str(auth_dir),
+            ],
+            check=True,
+            timeout=150,
+        )
+        environment["MQTT_AUTH_DIR"] = str(auth_dir)
         empty_env = Path(directory) / "empty.env"
         empty_env.touch()
         command = [
@@ -125,38 +137,53 @@ def main() -> None:
                 query,
             )
 
-        def publish(topic: str, value: str) -> None:
-            compose(
-                "exec",
-                "-T",
-                "mosquitto",
-                "mosquitto_pub",
-                "-h",
-                "127.0.0.1",
-                "-t",
-                topic,
-                "-m",
-                value,
-                "-r",
-                "-q",
-                "1",
+        def mqtt(
+            user: str, client: str, *args: str, check: bool = True
+        ) -> subprocess.CompletedProcess[str]:
+            # The root-owned CLI reads a generated file inside the container so
+            # passwords never enter the host Docker command or failure traceback.
+            result = subprocess.run(
+                [
+                    *command,
+                    "exec",
+                    "-T",
+                    "--user",
+                    "0",
+                    "mosquitto",
+                    "sh",
+                    "-c",
+                    (
+                        'user="$1"; client="$2"; shift 2; '
+                        'exec "$client" -h 127.0.0.1 -u "$user" '
+                        '-P "$(cat "/mosquitto/config/auth/$user.password")" "$@"'
+                    ),
+                    "sh",
+                    user,
+                    client,
+                    *args,
+                ],
+                cwd=ROOT,
+                env=environment,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                check=False,
+                timeout=20,
             )
+            if check and result.returncode != 0:
+                raise AssertionError(
+                    f"{client} failed for {user} (exit {result.returncode})"
+                )
+            return result
+
+        def publish(topic: str, value: str) -> None:
+            mqtt("health", "mosquitto_pub", "-t", topic, "-m", value, "-r", "-q", "1")
 
         def retained(topic: str) -> str:
-            return compose(
-                "exec",
-                "-T",
-                "mosquitto",
-                "mosquitto_sub",
-                "-h",
-                "127.0.0.1",
-                "-t",
-                topic,
-                "-C",
-                "1",
-                "-W",
-                "5",
-            )
+            return mqtt(
+                "health", "mosquitto_sub", "-t", topic, "-C", "1", "-W", "5", "-q", "1"
+            ).stdout.strip()
 
         def require(condition: bool, message: str) -> None:
             if not condition:
@@ -217,7 +244,7 @@ def main() -> None:
             ):
                 pass
             marker = secrets.token_hex(12)
-            topic = "iemp/smoke/persistence"
+            topic = "_health/smoke/persistence"
             compose(
                 "exec", "-T", "backend", "python", "-m", "alembic", "upgrade", "head"
             )
@@ -234,6 +261,145 @@ def main() -> None:
             )
             require(sql(registry_query) == "device-demo-001", "Registry seed failed")
             print("PASS: packaged migration and repeatable registry seed", flush=True)
+            telemetry_topic = "equipment/device-demo-001/telemetry"
+            event = json.loads(
+                (ROOT / "infra/mosquitto/sample-event.json").read_text(encoding="utf-8")
+            )
+            session_id = f"smoke-{marker}"
+            mqtt(
+                "gateway-demo-001",
+                "mosquitto_sub",
+                "-c",
+                "-i",
+                session_id,
+                "-E",
+                "-t",
+                "equipment/+/telemetry",
+                "-q",
+                "1",
+            )
+            mqtt(
+                "device-demo-001",
+                "mosquitto_pub",
+                "-t",
+                telemetry_topic,
+                "-m",
+                json.dumps(event, separators=(",", ":")),
+                "-q",
+                "1",
+            )
+            delivered = mqtt(
+                "gateway-demo-001",
+                "mosquitto_sub",
+                "-c",
+                "-i",
+                session_id,
+                "-t",
+                "equipment/+/telemetry",
+                "-q",
+                "1",
+                "-C",
+                "1",
+                "-W",
+                "5",
+            ).stdout.strip()
+            require(
+                json.loads(delivered) == event,
+                "Authenticated MQTT event changed or was lost",
+            )
+            no_retain = mqtt(
+                "gateway-demo-001",
+                "mosquitto_sub",
+                "-t",
+                telemetry_topic,
+                "-q",
+                "1",
+                "-C",
+                "1",
+                "-W",
+                "2",
+                check=False,
+            )
+            require(
+                no_retain.returncode == 27 and not no_retain.stdout,
+                "Telemetry was retained",
+            )
+            anonymous = subprocess.run(
+                [
+                    *command,
+                    "exec",
+                    "-T",
+                    "mosquitto",
+                    "mosquitto_pub",
+                    "-h",
+                    "127.0.0.1",
+                    "-t",
+                    telemetry_topic,
+                    "-m",
+                    "unauthorized",
+                    "-q",
+                    "1",
+                ],
+                cwd=ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=20,
+            )
+            require(
+                anonymous.returncode == 5, "Anonymous MQTT publish was not rejected"
+            )
+            wrong_session = f"wrong-{marker}"
+            mqtt(
+                "gateway-demo-001",
+                "mosquitto_sub",
+                "-c",
+                "-i",
+                wrong_session,
+                "-E",
+                "-t",
+                "equipment/other-device/telemetry",
+                "-q",
+                "1",
+            )
+            mqtt(
+                "device-demo-001",
+                "mosquitto_pub",
+                "-V",
+                "5",
+                "-t",
+                "equipment/other-device/telemetry",
+                "-m",
+                "unauthorized",
+                "-q",
+                "1",
+                check=False,
+            )
+            wrong_delivery = mqtt(
+                "gateway-demo-001",
+                "mosquitto_sub",
+                "-c",
+                "-i",
+                wrong_session,
+                "-t",
+                "equipment/other-device/telemetry",
+                "-q",
+                "1",
+                "-C",
+                "1",
+                "-W",
+                "2",
+                check=False,
+            )
+            require(
+                wrong_delivery.returncode == 27 and not wrong_delivery.stdout,
+                "Device could publish outside its topic",
+            )
+            print(
+                "PASS: authenticated QoS 1 device-to-gateway MQTT; no retained telemetry or unauthorized publish",
+                flush=True,
+            )
             simulator_environment = environment | {
                 "API_BASE_URL": url("backend", 8000, "/api"),
                 "GATEWAY_API_KEY": gateway_token,

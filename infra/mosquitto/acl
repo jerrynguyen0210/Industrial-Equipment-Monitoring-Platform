@@ -1,0 +1,10 @@
+# Prototype identities. Add one explicit writer rule per provisioned device.
+user device-demo-001
+topic write equipment/device-demo-001/telemetry
+
+user gateway-demo-001
+topic read equipment/+/telemetry
+
+# Health and isolated persistence checks stay outside the telemetry namespace.
+user health
+topic readwrite _health/#

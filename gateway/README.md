@@ -34,17 +34,21 @@ errors fail the job; the missing-project skip is not gateway validation evidence
 
 The architecture baseline is native C++17 with a local SQLite queue. The gateway
 is deliberately outside Compose so hardware access and queue storage stay under
-the gateway host's control. Start the development broker using `docker compose up
--d mosquitto` from the repository root, or start the entire local platform with
-`docker compose up`. A gateway on the same computer uses MQTT `127.0.0.1:1883` and
-backend base URL `http://127.0.0.1:8000`. Only backend health endpoints exist so far.
+the gateway host's control. First run `python infra/mosquitto/provision.py` from
+the repository root. Then start the development broker with `docker compose up
+-d mosquitto`, or start the entire local platform with `docker compose up`.
+A gateway on the same computer uses MQTT `127.0.0.1:1883` and backend base URL
+`http://127.0.0.1:8000`. The backend ingestion endpoint is implemented; the
+native gateway MQTT client and forwarding loop are not.
 
 [.env.example](.env.example) records planned `MQTT_HOST`, `MQTT_PORT`,
-`API_BASE_URL` (including `/api`), and `GATEWAY_API_KEY` settings. Copy it to an
+`MQTT_USERNAME`, `MQTT_PASSWORD_FILE`, `API_BASE_URL` (including `/api`), and
+`GATEWAY_API_KEY` settings. Copy it to an
 ignored `.env` for local values. No gateway runtime loads this file yet, and the
-credential placeholder does not enable authentication. Provision a unique
-gateway credential when authentication/ingestion is implemented; keep it out of
-frontend configuration. See the [configuration guide](../docs/configuration.md).
+API credential placeholder does not enable HTTP authentication. Provision a unique
+API bearer token separately from the generated MQTT password; keep both out of
+frontend configuration. See the [configuration guide](../docs/configuration.md)
+and [MQTT topic contract](../docs/mqtt-topic-contract.md).
 
 See [hardware connectivity and independent service lifecycles](../infra/README.md#gateway-and-firmware-outside-compose)
 for Pi/LAN settings and backend-outage testing. Keep the SQLite queue outside

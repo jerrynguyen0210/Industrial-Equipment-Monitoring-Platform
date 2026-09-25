@@ -42,11 +42,23 @@ services:
         read_only: true
         bind:
           create_host_path: false
+      - type: bind
+        source: ./infra/mosquitto/acl
+        target: /mosquitto/config/acl
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${MQTT_AUTH_DIR:-./secrets/mosquitto}
+        target: /mosquitto/config/auth
+        read_only: true
+        bind:
+          create_host_path: false
       - mosquitto_data:/mosquitto/data
     networks:
       - platform
     healthcheck:
-      test: ["CMD", "mosquitto_pub", "-h", "127.0.0.1", "-t", "_health/mosquitto", "-m", "ready", "-q", "1"]
+      test: ["CMD-SHELL", "mosquitto_pub -h 127.0.0.1 -u health -P \"$$(cat /mosquitto/config/auth/health.password)\" -t _health/mosquitto -m ready -q 1"]
       interval: 5s
       timeout: 5s
       retries: 5

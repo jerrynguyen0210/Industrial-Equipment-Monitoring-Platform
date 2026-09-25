@@ -7,13 +7,12 @@ Mosquitto, FastAPI, and React/TypeScript. These runtimes follow the proposed
 implementation baseline in the [requirements specification](Industrial_Equipment_Monitoring_Requirements.pdf)
 and the component boundaries in the [architecture decision package](Technical_Lead_Architecture_Decision_Package_Sprint01.pdf).
 
-The backend currently exposes health endpoints and the frontend displays their
-result. This makes container startup and browser-to-API-to-database connectivity
-reviewable before application features arrive. The backend also includes a
+The backend exposes health and authenticated telemetry ingestion endpoints, and
+the frontend displays health. This makes container startup and browser-to-API-to-
+database connectivity reviewable. The backend also includes a
 [minimum persisted registry](registry.md), explicit Alembic migrations, and a demo
-seed command. It does not implement the approved telemetry ingestion contract,
-authentication, or alerts.
-No demo readings or successful ingestion responses are fabricated.
+seed command. The native gateway and alerts are still unimplemented. No demo
+readings are inserted during ordinary stack startup.
 
 The backend depends on PostgreSQL only. It does not consume device MQTT; the
 native C++ gateway will own MQTT intake, SQLite buffering, and batch forwarding.
@@ -34,9 +33,9 @@ outside Compose. A full-stack shutdown intentionally stops the development broke
   of dependency outages.
 - Serve React through unprivileged Nginx and proxy `/api/` on the same origin.
   Container DNS is resolved inside Nginx and refreshed after backend replacement.
-- Permit local-only development credentials, HTTP, and anonymous MQTT so a clean
-  checkout starts with one command. These are explicitly scoped development
-  exceptions, not a change to deployed TLS or authentication requirements.
+- Generate ignored local MQTT credentials before the first Compose start. The
+  broker requires passwords and topic ACLs; plain HTTP and unencrypted MQTT are
+  scoped development exceptions, not a change to deployed TLS requirements.
 - Use a single local database owner for development. Registry migrations are
   explicit deployment commands; separate migration/runtime roles for deployed
   environments remain an infrastructure provisioning task.

@@ -131,13 +131,17 @@ python tests/compose_smoke.py
 ```
 
 The suite creates an isolated `iemp-smoke-<random>` project, ignores the developer's
-`.env`, selects ephemeral loopback ports, and builds the actual application images.
+`.env`, generates temporary MQTT credentials, selects ephemeral loopback ports,
+and builds the actual application images.
 It verifies:
 
 - All service health checks pass, backend `/health` and `/ready` return the
   documented JSON, and the frontend can reach `/api/health/ready` through its
   same-origin proxy.
-- PostgreSQL queries, MQTT publish/subscribe, and the published host MQTT port work.
+- PostgreSQL queries and the published host MQTT port work. An authenticated demo
+  device publishes the sample event at QoS 1; the authenticated gateway receives
+  it at QoS 1. Anonymous clients are refused and wrong-topic device messages
+  are not delivered; telemetry is not retained.
 - The backend image can apply its Alembic migration and run the registry seed
   twice, producing the expected enabled site/gateway/device hierarchy.
 - The API-mode simulator submits a valid batch, matching replay and mixed batch,
@@ -151,8 +155,8 @@ It verifies:
   the backend and frontend proxy while `/health` remains 200, and readiness
   recovers after PostgreSQL returns.
 - The frontend proxy recovers after backend container recreation.
-- SQL data, seeded registry, ingested telemetry, and MQTT messages survive `down` followed
-  by `up`.
+- SQL data, seeded registry, ingested telemetry, and a retained `_health/` test
+  message survive `down` followed by `up`.
 
 Cleanup removes only the generated project's containers, networks, and test
 volumes, including on ordinary failures. Abruptly killing Python can leave a test

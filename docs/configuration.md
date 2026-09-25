@@ -1,7 +1,7 @@
 # Local configuration and secrets
 
 Examples contain synthetic local defaults or credential placeholders only.
-`docker compose up` still works from a clean checkout without any `.env` file.
+Compose needs one-time MQTT credential provisioning, but no `.env` file.
 Copy an example to `.env` beside it only for the workflow you use, and edit that
 local copy. Do not overwrite an existing `.env` when refreshing examples.
 
@@ -9,10 +9,10 @@ local copy. Do not overwrite an existing `.env` when refreshing examples.
 
 | Example | Consumer | Loading and precedence |
 | --- | --- | --- |
-| [Root](../.env.example) | Compose: PostgreSQL, backend, frontend build, broker publishing | Shell variables override root `.env`, then Compose defaults. A chosen `--env-file` replaces the default file. |
+| [Root](../.env.example) | Compose: PostgreSQL, backend, frontend build, broker publishing/auth mount | Shell variables override root `.env`, then Compose defaults. A chosen `--env-file` replaces the default file. |
 | [Backend](../backend/.env.example) | Native Uvicorn; reference for Alembic/seed | Uvicorn explicitly loads `--env-file .env` from `backend/`; shell variables win. Alembic/seed use exported shell variables only. Nonempty `DATABASE_URL` wins over `PG*`. |
 | [Frontend](../frontend/.env.example) | Native Vite | Shell wins, then mode-specific `.env.[mode].local` / `.env.[mode]`, then `.env.local` / `.env`, then code defaults. |
-| [Gateway](../gateway/.env.example) | Planned native gateway | Template only; native runtime/env loading is not implemented. API bearer authentication is available. |
+| [Gateway](../gateway/.env.example) | Planned native gateway | Template only; native runtime/env loading is not implemented. MQTT and API credentials are separate. |
 | [Simulator](../simulator/.env.example) | Deterministic generator and API-only fixture sender | Reads exported `API_BASE_URL` and `GATEWAY_API_KEY`; `simulate.py --api-base-url` overrides the URL. Scenario options are CLI flags; no automatic `.env` loading. MQTT mode remains planned. |
 
 Compose does **not** automatically load service-directory `.env` files. Application
@@ -32,6 +32,8 @@ firmware has no environment-variable loader yet.
 | `VITE_API_BASE_URL` | `/api` | Browser API prefix; readiness appends `/health/ready` |
 | `API_PROXY_TARGET` | `http://127.0.0.1:8000` | Native Vite development proxy target, without `/api` |
 | `MQTT_HOST`, `MQTT_PORT` | `127.0.0.1`, `1883` | Planned native gateway/simulator broker address |
+| `MQTT_USERNAME`, `MQTT_PASSWORD_FILE` | Demo account and ignored local password path | Planned native client authentication; current gateway/simulator MQTT loaders are not implemented |
+| `MQTT_AUTH_DIR` | `./secrets/mosquitto` | Compose read-only broker auth mount; generate it before starting Mosquitto |
 | `API_BASE_URL` | `http://127.0.0.1:8000/api` | Gateway/simulator API prefix |
 | `GATEWAY_API_KEY` | `replace-with-provisioned-...-credential` | Nonfunctional placeholder; replace with a generated token matching the backend map |
 | `GATEWAY_CREDENTIALS_JSON` | Empty | Backend map of registered gateway IDs to unique bearer tokens; empty denies ingestion |
@@ -71,13 +73,15 @@ a local token without printing it and provisions the demo mapping explicitly.
 For Compose, from the repository root:
 
 ```sh
+python infra/mosquitto/provision.py
 cp .env.example .env
 # Edit local overrides, then validate without printing resolved secrets.
 docker compose config --quiet
 docker compose up -d --build --wait
 ```
 
-In PowerShell, `Copy-Item .env.example .env` is the equivalent copy command.
+The copy is optional; in PowerShell, `Copy-Item .env.example .env` is the equivalent
+copy command. The provisioner refuses to replace an existing auth directory.
 Native backend and frontend commands are in their respective READMEs. Uvicorn's
 `--env-file` support uses the locked `python-dotenv` development dependency.
 Restart native processes after changing settings; rebuild the frontend after
@@ -94,7 +98,8 @@ credentials in examples, source, test fixtures, logs, or screenshots. All `VITE_
 values and frontend build arguments are public; credentials belong in backend or
 gateway runtime configuration. Prototype API bearer authentication uses the
 explicit backend credential map; placeholder tokens are rejected. The broker
-still permits anonymous, unencrypted local MQTT.
+denies anonymous MQTT and uses generated local passwords plus topic ACLs. Local
+MQTT is unencrypted; see the [topic contract](mqtt-topic-contract.md).
 
 Git ignores `.env` and variants, `*.env` files, `secrets/`, `.secrets/`,
 `credentials/`, common private-key/keystore files, `.pgpass`, and service-account
