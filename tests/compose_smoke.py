@@ -397,7 +397,7 @@ def main() -> None:
                 "Device could publish outside its topic",
             )
             print(
-                "PASS: authenticated QoS 1 device-to-gateway MQTT; no retained telemetry or unauthorized publish",
+                "PASS: MQTT QoS 1 delivery, auth, ACL, and no-retain policy",
                 flush=True,
             )
             simulator_environment = environment | {
