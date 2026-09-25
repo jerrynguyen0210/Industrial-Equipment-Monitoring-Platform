@@ -20,13 +20,14 @@ runs as UID/GID 10001 and has no application volume or host-source mount.
 
 | Endpoint | Meaning |
 | --- | --- |
+| `POST /api/v1/telemetry/batches` | Bearer-authenticated batch ingestion; ordered per-item outcomes after commit. |
 | `GET /health` | HTTP 200 with `{"status":"ok"}` while the API can serve requests. No dependency check. |
 | `GET /ready` | HTTP 200 with `{"status":"ready","database":"ok"}` after an authenticated `SELECT 1`; HTTP 503 with `{"status":"unavailable","database":"unavailable"}` on database failure. |
 
 `/api/health/live` and `/api/health/ready` remain equivalent aliases for existing
 clients and the frontend proxy. The [health API contract](../docs/health-api.md)
 documents response fields, failure behavior, and machine-checkable examples.
-`GET /openapi.json` describes both success and readiness HTTP 503 responses.
+`GET /openapi.json` describes health and the implemented telemetry operation.
 
 Set `DATABASE_URL` to a PostgreSQL URL containing host, database, username, and
 password (port defaults to 5432). A nonempty URL takes precedence over `PGHOST`,
@@ -46,7 +47,10 @@ measurement time, unique event identity, and device/time indexes.
 The [telemetry API validation contract](../docs/telemetry-api-contract.md) supplies
 strict request/response models, independent per-item validation, and a generated
 [OpenAPI contract with examples](../docs/telemetry-openapi.json). The ingestion route
-is not mounted yet; authentication and durable ingestion remain separate work.
+uses `GATEWAY_CREDENTIALS_JSON` to map registered gateway IDs to unique prototype
+bearer tokens. Empty configuration denies all ingestion requests; invalid mappings
+fail startup. Credentials are loaded once at startup; restart to rotate/revoke them.
+See the [simulator quick start](../simulator/README.md) for a complete runnable slice.
 Health responses do not acknowledge telemetry, and readiness checks connectivity only.
 
 ## Registry migrations and demo seed
@@ -102,8 +106,8 @@ python -m venv .venv
 # Windows PowerShell: .\.venv\Scripts\Activate.ps1
 # Linux/macOS: source .venv/bin/activate
 python -m pip install --require-hashes -r backend/requirements-dev.txt
-python -m ruff check --config backend/pyproject.toml backend tests/compose_smoke.py
-python -m ruff format --check --config backend/pyproject.toml backend tests/compose_smoke.py
+python -m ruff check --config backend/pyproject.toml backend simulator tests/compose_smoke.py
+python -m ruff format --check --config backend/pyproject.toml backend simulator tests/compose_smoke.py
 cd backend
 python -m unittest discover -s tests -v
 ```
@@ -135,6 +139,9 @@ conflict rollback, and the actual migration/seed CLI commands. It also checks
 telemetry identity uniqueness under concurrent writes, nullable measurement time,
 UTC conversion, server-generated receipt time, contract checks, indexed queries,
 and telemetry rollback without losing registry data.
+HTTP ingestion tests additionally verify ownership, mixed classifications, all
+batch boundaries, precise numbers, concurrent retries/conflicts, registry locks,
+failed-commit rollback, and lost commit acknowledgement followed by a safe retry.
 
 To run the API natively, install the development dependencies above, then run
 from `backend/`. Copy the example once and edit `DATABASE_URL` to match a

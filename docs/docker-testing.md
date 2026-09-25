@@ -36,9 +36,10 @@ uses only Python's standard library, so a separate Python 3.13+ installation als
 works. The first run downloads images and builds the backend/frontend; it can
 take several minutes before the first PASS line.
 
-Expected output includes six PASS lines covering:
+Expected output includes seven PASS lines covering:
 
 - Packaged migration and repeatable registry seed.
+- Simulator HTTP ingestion, duplicate replay, mixed outcomes and telemetry persistence.
 - Health checks, frontend proxy, PostgreSQL queries, and MQTT.
 - MQTT and frontend availability during a backend outage.
 - Database outage and readiness recovery.

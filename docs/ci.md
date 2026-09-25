@@ -12,7 +12,7 @@ prevent the other jobs from producing useful results.
 
 | Check | Verification | Runtime and limit |
 | --- | --- | --- |
-| Backend lint and tests | Hash-locked dependencies, Ruff lint/format, database-free unit tests, and registry/telemetry migration and persistence tests against a PostgreSQL 17 service. Python lint also covers the Compose smoke script. | Python 3.13; 10 minutes. |
+| Backend lint and tests | Hash-locked dependencies, Ruff lint/format, backend and API simulator unit tests, and registry/telemetry/HTTP ingestion tests against PostgreSQL 17. Python lint also covers the simulator and Compose smoke script. | Python 3.13; 10 minutes. |
 | Frontend checks, tests, and build | `npm ci`, TypeScript and Prettier checks, `npm test`, production build. | Node.js 24; 10 minutes. |
 | Compose integration | Compose configuration validation and the isolated smoke suite against actual backend/frontend images, PostgreSQL, and Mosquitto. | Python 3.13 and Docker Compose; 20 minutes. |
 | Gateway build (when implemented) | CMake Release configuration and C++17 compilation when `gateway/CMakeLists.txt` exists. | Runner CMake and C++ compiler; 10 minutes. |
@@ -48,6 +48,9 @@ dependencies and actual gateway tests in the same change.
   enabled-state ownership checks, and transactional, repeatable seeding.
   Telemetry checks cover identity conflicts and concurrent writes, UTC timestamps,
   nullable measurement time, database defaults/checks, and device/time indexes.
+  HTTP tests also verify bearer credentials, mixed ownership/validation outcomes,
+  commit failures, concurrent retries, and registry locks. Compose smoke invokes
+  the simulator over HTTP and verifies telemetry persistence across stack restart.
 
 Cache support follows the official [setup-python documentation](https://github.com/actions/setup-python#caching-packages-dependencies)
 and [setup-node documentation](https://github.com/actions/setup-node#caching-global-packages-data).

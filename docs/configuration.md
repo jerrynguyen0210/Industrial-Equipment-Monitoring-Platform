@@ -12,8 +12,8 @@ local copy. Do not overwrite an existing `.env` when refreshing examples.
 | [Root](../.env.example) | Compose: PostgreSQL, backend, frontend build, broker publishing | Shell variables override root `.env`, then Compose defaults. A chosen `--env-file` replaces the default file. |
 | [Backend](../backend/.env.example) | Native Uvicorn; reference for Alembic/seed | Uvicorn explicitly loads `--env-file .env` from `backend/`; shell variables win. Alembic/seed use exported shell variables only. Nonempty `DATABASE_URL` wins over `PG*`. |
 | [Frontend](../frontend/.env.example) | Native Vite | Shell wins, then mode-specific `.env.[mode].local` / `.env.[mode]`, then `.env.local` / `.env`, then code defaults. |
-| [Gateway](../gateway/.env.example) | Planned native gateway | Template only; runtime/env loading and credential validation are not implemented. |
-| [Simulator](../simulator/.env.example) | Planned simulator | Template only; runtime/env loading and API-only mode are not implemented. |
+| [Gateway](../gateway/.env.example) | Planned native gateway | Template only; native runtime/env loading is not implemented. API bearer authentication is available. |
+| [Simulator](../simulator/.env.example) | API-only fixture sender | Reads exported `API_BASE_URL` and `GATEWAY_API_KEY`; does not load `.env`. MQTT mode remains planned. |
 
 Compose does **not** automatically load service-directory `.env` files. Application
 Docker contexts use allowlists, excluding local env files and secret directories.
@@ -32,8 +32,9 @@ firmware has no environment-variable loader yet.
 | `VITE_API_BASE_URL` | `/api` | Browser API prefix; readiness appends `/health/ready` |
 | `API_PROXY_TARGET` | `http://127.0.0.1:8000` | Native Vite development proxy target, without `/api` |
 | `MQTT_HOST`, `MQTT_PORT` | `127.0.0.1`, `1883` | Planned native gateway/simulator broker address |
-| `API_BASE_URL` | `http://127.0.0.1:8000/api` | Planned gateway/simulator API prefix |
-| `GATEWAY_API_KEY` | `replace-with-provisioned-...-credential` | Nonfunctional placeholder; use distinct provisioned gateway/test credentials later |
+| `API_BASE_URL` | `http://127.0.0.1:8000/api` | Gateway/simulator API prefix |
+| `GATEWAY_API_KEY` | `replace-with-provisioned-...-credential` | Nonfunctional placeholder; replace with a generated token matching the backend map |
+| `GATEWAY_CREDENTIALS_JSON` | Empty | Backend map of registered gateway IDs to unique bearer tokens; empty denies ingestion |
 | Root `FRONTEND_PORT`, `BACKEND_PORT`, `MQTT_PORT` | `8080`, `8000`, `1883` | Published host ports, not container ports |
 | Root `*_BIND_ADDRESS` | `127.0.0.1` | Loopback publishing |
 
@@ -56,6 +57,14 @@ into a URL. For root Compose values containing literal `$` or `#`, single-quote
 the value in `.env` to avoid interpolation/comment parsing. `PG*` variables remain
 an alternative to URL encoding. Configuration errors and readiness logs omit
 connection values.
+
+The backend loads `GATEWAY_CREDENTIALS_JSON` once at startup. Use a JSON object
+whose keys are registered gateway IDs and values are generated tokens. No default
+gateway token is provisioned. Invalid mappings fail startup with a value-free
+error. Removing/replacing a mapping and restarting the backend revokes/rotates
+its credential; gateway/site disabling in the registry applies on the next
+ingestion request. The [simulator quick start](../simulator/README.md) generates
+a local token without printing it and provisions the demo mapping explicitly.
 
 ## Local setup
 
@@ -83,8 +92,9 @@ CORS; the current backend does not configure cross-origin access.
 Never store real database URLs, gateway keys, private keys, or service-account
 credentials in examples, source, test fixtures, logs, or screenshots. All `VITE_*`
 values and frontend build arguments are public; credentials belong in backend or
-gateway runtime configuration. The gateway placeholder is not an authentication
-implementation. The broker still permits anonymous, unencrypted local MQTT.
+gateway runtime configuration. Prototype API bearer authentication uses the
+explicit backend credential map; placeholder tokens are rejected. The broker
+still permits anonymous, unencrypted local MQTT.
 
 Git ignores `.env` and variants, `*.env` files, `secrets/`, `.secrets/`,
 `credentials/`, common private-key/keystore files, `.pgpass`, and service-account

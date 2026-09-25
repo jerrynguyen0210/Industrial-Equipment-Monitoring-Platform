@@ -43,14 +43,15 @@ Unknown device takes precedence over assignment; a wrong gateway takes precedenc
 over enabled-state checks. The caller must derive `gateway_id` from authenticated
 credentials. Supplied payload IDs cannot authenticate a caller. This follows
 section 6 of the [approved ingestion contract](Technical_Lead_Telemetry_Ingestion_Contract_Approval_Sprint01.pdf).
-`disabled` is an internal registry result; mapping it into an ingestion response
-remains part of the future authentication/ingestion workstream. No new public
-telemetry error code is introduced here.
+`disabled` is an internal registry result. The [ingestion adapter](telemetry-api-contract.md)
+returns request-level 403 for a disabled gateway/site and per-item `wrong_gateway`
+for an owned disabled device, whose ingestion eligibility has been revoked.
 
 Callers own the SQLAlchemy session and transaction. The lookup observes state at
 query time, does not reserve ownership against concurrent reassignments, and does
-not commit or acknowledge telemetry. An ingestion implementation must define
-transaction coordination if assignment or enabled state can change during a write.
+not commit or acknowledge telemetry. The ingestion service performs a separate
+bulk lookup with shared row locks held until commit to stabilize assignments and
+enabled states during writes.
 
 ## Migration and deployment
 

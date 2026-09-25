@@ -1,4 +1,4 @@
-"""Two-stage telemetry validation for an eventual authenticated HTTP adapter."""
+"""Two-stage telemetry validation for the authenticated HTTP adapter."""
 
 import json
 from dataclasses import dataclass
@@ -152,7 +152,6 @@ async def read_telemetry_batch(request: Request) -> ValidatedTelemetryBatch:
     """Use after authentication; map request errors to HTTP 400, retaining item errors.
 
     Do not call request.json() first: its float conversion loses decimal precision.
-    No route is mounted until authentication and durable ingestion are implemented.
     """
     try:
         return parse_telemetry_batch(await request.body())

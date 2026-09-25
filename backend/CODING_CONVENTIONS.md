@@ -3,7 +3,7 @@
 Development rules for telemetry ingestion, persistence, APIs, and equipment
 monitoring. Read this guide before adding or changing backend code.
 
-The backend currently provides a FastAPI health API backed by PostgreSQL. See
+The backend provides FastAPI health and telemetry ingestion backed by PostgreSQL. See
 [README.md](README.md) for the Python toolchain and executable checks. The wider
 domain, security, and reliability rules below remain implementation expectations.
 

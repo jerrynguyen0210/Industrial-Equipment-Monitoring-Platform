@@ -3,7 +3,7 @@
   "info": {
     "title": "Telemetry ingestion contract",
     "version": "telemetry-batch.v1",
-    "description": "Contract for the future ingestion endpoint. Models and validation are implemented; authentication, persistence orchestration and this route are not yet installed in the running application."
+    "description": "Implemented ingestion endpoint with prototype bearer credentials, registry ownership, independent outcomes and durable persistence."
   },
   "paths": {
     "/api/v1/telemetry/batches": {
@@ -11,7 +11,7 @@
         "operationId": "ingestTelemetryBatch",
         "summary": "Ingest a version 1 telemetry batch",
         "description": "Authenticate first, validate the envelope, then classify each item independently. Invalid items do not block valid ones. One result per item in input order; accepted requires a durable database commit. Unknown identity fields on bad items are null. Structural item errors take precedence over metric, then unit errors.",
-        "x-implementation-status": "models-and-validation-only",
+        "x-implementation-status": "implemented",
         "security": [
           {
             "GatewayCredential": []
@@ -232,8 +232,8 @@
           "403": {
             "description": "Gateway credential is not authorized"
           },
-          "429": {
-            "description": "Transient failure; keep queued and retry"
+          "503": {
+            "description": "Database/commit failure; retry unchanged"
           },
           "5XX": {
             "description": "Transient server/commit failure; no accepted claims"
@@ -307,6 +307,7 @@
           "batch_id": {
             "maxLength": 128,
             "minLength": 1,
+            "pattern": "^[^\\x00]+$",
             "title": "Batch Id",
             "type": "string"
           },
@@ -334,12 +335,14 @@
           "device_id": {
             "maxLength": 128,
             "minLength": 1,
+            "pattern": "^[^\\x00]+$",
             "title": "Device Id",
             "type": "string"
           },
           "boot_id": {
             "maxLength": 128,
             "minLength": 1,
+            "pattern": "^[^\\x00]+$",
             "title": "Boot Id",
             "type": "string"
           },
@@ -499,6 +502,7 @@
               {
                 "maxLength": 128,
                 "minLength": 1,
+                "pattern": "^[^\\x00]+$",
                 "type": "string"
               },
               {
@@ -512,6 +516,7 @@
               {
                 "maxLength": 128,
                 "minLength": 1,
+                "pattern": "^[^\\x00]+$",
                 "type": "string"
               },
               {

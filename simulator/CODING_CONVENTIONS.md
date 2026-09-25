@@ -1,8 +1,8 @@
 # Simulator Coding Conventions
 
 Development rules for virtual devices, repeatable telemetry, fault injection,
-and load scenarios. These are implementation expectations; no simulator runtime
-or automated checks are currently configured.
+and load scenarios. The API fixture sender and its executable checks are documented
+in [README.md](README.md); broader device/load scenarios remain future work.
 
 ## 1. Scope and shared rules
 

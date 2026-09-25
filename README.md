@@ -5,10 +5,11 @@ gateway and backend, and presenting equipment status in a monitoring interface.
 
 ## Project status
 
-The local platform runs PostgreSQL, Mosquitto, a FastAPI health API, and a
-React/TypeScript service-status page with Docker Compose. Telemetry ingestion,
-equipment dashboards, the gateway, and firmware remain separate implementation
-workstreams.
+The local platform runs PostgreSQL, Mosquitto, a FastAPI health and telemetry API,
+and a React/TypeScript service-status page with Docker Compose. The
+[API-mode simulator](simulator/README.md) exercises authenticated batch ingestion,
+per-item outcomes, persistence and retries. Equipment dashboards, the native
+gateway, and firmware remain separate implementation workstreams.
 
 ## Repository structure
 

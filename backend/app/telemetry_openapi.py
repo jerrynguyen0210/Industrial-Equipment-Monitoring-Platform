@@ -1,4 +1,4 @@
-"""Generate the standalone ingestion contract; this does not mount an HTTP route."""
+"""Generate the ingestion contract shared by the running API and documentation."""
 
 import argparse
 import json
@@ -110,9 +110,8 @@ def build_telemetry_openapi() -> dict:
             "title": "Telemetry ingestion contract",
             "version": "telemetry-batch.v1",
             "description": (
-                "Contract for the future ingestion endpoint. Models and validation "
-                "are implemented; authentication, persistence orchestration and this "
-                "route are not yet installed in the running application."
+                "Implemented ingestion endpoint with prototype bearer credentials, "
+                "registry ownership, independent outcomes and durable persistence."
             ),
         },
         "paths": {
@@ -128,7 +127,7 @@ def build_telemetry_openapi() -> dict:
                         "are null. Structural item errors take precedence over metric, "
                         "then unit errors."
                     ),
-                    "x-implementation-status": "models-and-validation-only",
+                    "x-implementation-status": "implemented",
                     "security": [{"GatewayCredential": []}],
                     "requestBody": {
                         "required": True,
@@ -170,8 +169,8 @@ def build_telemetry_openapi() -> dict:
                         },
                         "401": {"description": "Missing or invalid gateway credential"},
                         "403": {"description": "Gateway credential is not authorized"},
-                        "429": {
-                            "description": "Transient failure; keep queued and retry"
+                        "503": {
+                            "description": "Database/commit failure; retry unchanged"
                         },
                         "5XX": {
                             "description": (

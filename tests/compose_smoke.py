@@ -6,6 +6,7 @@ import secrets
 import shutil
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.error
@@ -21,9 +22,11 @@ def main() -> None:
 
     # Never use the developer's project, .env, fixed ports, or named volumes.
     project = f"iemp-smoke-{secrets.token_hex(6)}"
+    gateway_token = secrets.token_urlsafe(24)
     environment = {
         **os.environ,
         "DATABASE_URL": "",
+        "GATEWAY_CREDENTIALS_JSON": json.dumps({"gateway-demo-001": gateway_token}),
         "VITE_API_BASE_URL": "/api",
         "POSTGRES_DB": "iemp_smoke",
         "POSTGRES_USER": "iemp_smoke",
@@ -228,6 +231,42 @@ def main() -> None:
             )
             require(sql(registry_query) == "device-demo-001", "Registry seed failed")
             print("PASS: packaged migration and repeatable registry seed", flush=True)
+            simulator_environment = environment | {
+                "API_BASE_URL": url("backend", 8000, "/api"),
+                "GATEWAY_API_KEY": gateway_token,
+            }
+            for fixture, expected in (
+                ("valid-batch.json", "accepted"),
+                ("valid-batch.json", "duplicate"),
+                (
+                    "mixed-batch.json",
+                    "accepted,rejected:invalid_unit,rejected:unknown_device",
+                ),
+            ):
+                subprocess.run(
+                    [
+                        sys.executable,
+                        str(ROOT / "simulator/send_batch.py"),
+                        "--batch",
+                        str(ROOT / "simulator/fixtures" / fixture),
+                        "--expect",
+                        expected,
+                    ],
+                    env=simulator_environment,
+                    check=True,
+                    timeout=40,
+                )
+            telemetry_query = (
+                "SELECT count(*) FROM telemetry "
+                "WHERE device_id = 'device-demo-001' "
+                "AND boot_id = 'simulator-vertical-slice-v1' "
+                "AND backend_received_at IS NOT NULL"
+            )
+            require(sql(telemetry_query) == "2", "Simulator telemetry did not persist")
+            print(
+                "PASS: simulator HTTP ingestion, retries, mixed items and persistence",
+                flush=True,
+            )
             sql("CREATE TABLE compose_smoke (value text NOT NULL)")
             sql(f"INSERT INTO compose_smoke VALUES ('{marker}')")
             publish(topic, marker)
@@ -274,6 +313,7 @@ def main() -> None:
             wait_ready(url("frontend", 8080, "/api/health/ready"))
             require(sql("SELECT value FROM compose_smoke") == marker, "SQL data lost")
             require(sql(registry_query) == "device-demo-001", "Registry data lost")
+            require(sql(telemetry_query) == "2", "Telemetry data lost")
             require(retained(topic) == marker + "-outage", "MQTT retained data lost")
             print("PASS: both named volumes survive down/up", flush=True)
         except Exception as error:

@@ -41,19 +41,22 @@ It verifies:
 - PostgreSQL queries, MQTT publish/subscribe, and the published host MQTT port work.
 - The backend image can apply its Alembic migration and run the registry seed
   twice, producing the expected enabled site/gateway/device hierarchy.
+- The API-mode simulator submits a valid batch, matching replay and mixed batch,
+  and verifies independent outcomes plus database-generated receipt times.
 - Mosquitto and frontend remain available while the backend is stopped.
 - Database failure returns readiness HTTP 503 with structured JSON through both
   the backend and frontend proxy while `/health` remains 200, and readiness
   recovers after PostgreSQL returns.
 - The frontend proxy recovers after backend container recreation.
-- SQL data, the seeded registry, and retained MQTT messages survive `down` followed
+- SQL data, seeded registry, ingested telemetry, and MQTT messages survive `down` followed
   by `up`.
 
 Cleanup removes only the generated project's containers, networks, and test
 volumes, including on ordinary failures. Abruptly killing Python can leave a test
 project behind; inspect `docker compose ls --all` and use its exact generated
 project name when cleaning it up. No hardware or native gateway is exercised.
-This is infrastructure evidence, not ingestion, queue durability, or MVP acceptance.
+This covers infrastructure and the API ingestion slice; gateway queue durability
+and full MVP acceptance require additional scenarios.
 
 Registry migration/constraint acceptance tests live in
 [`backend/tests/integration/`](../backend/tests/integration/test_registry.py).
@@ -69,8 +72,8 @@ and pull request. All jobs report failures independently. See the
 For Python linting, use the backend's locked development dependencies and:
 
 ```sh
-python -m ruff check --config backend/pyproject.toml backend tests/compose_smoke.py
-python -m ruff format --check --config backend/pyproject.toml backend tests/compose_smoke.py
+python -m ruff check --config backend/pyproject.toml backend simulator tests/compose_smoke.py
+python -m ruff format --check --config backend/pyproject.toml backend simulator tests/compose_smoke.py
 ```
 
 Use repeatable simulator scenarios where possible and keep fixture data free of

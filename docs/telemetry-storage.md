@@ -51,13 +51,12 @@ be deleted accidentally along with their history. Disable registry entities to
 preserve history. No automatic retention deletion or cascading purge is enabled;
 define a retention policy before production volumes accumulate.
 
-This change provides storage. The ingestion workstream must authenticate the
-gateway, check registry ownership, validate the request, compare the contract's
-immutable fields on uniqueness conflicts, and return `accepted`/`duplicate`/
-`rejected` only after the relevant transaction outcome is known. The database
-constraint alone does not distinguish a matching retry from conflicting content.
-Use a savepoint or PostgreSQL conflict handling for per-item failures so an error
-does not invalidate unrelated items in the enclosing transaction.
+The [ingestion service](telemetry-api-contract.md) authenticates the gateway,
+checks registry ownership, validates each item, compares immutable fields on
+uniqueness conflicts, and returns outcomes only after commit. It uses PostgreSQL
+conflict handling and savepoints so permanent item failures do not invalidate
+unrelated items. The database constraint alone does not distinguish a matching
+retry from conflicting content.
 
 ## UTC and timestamp ownership
 

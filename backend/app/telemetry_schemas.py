@@ -25,7 +25,13 @@ TIMESTAMP_PATTERN = (
 )
 
 Identifier = Annotated[
-    str, Field(strict=True, min_length=1, max_length=MAX_IDENTIFIER_LENGTH)
+    str,
+    Field(
+        strict=True,
+        min_length=1,
+        max_length=MAX_IDENTIFIER_LENGTH,
+        pattern=r"^[^\x00]+$",
+    ),
 ]
 Counter = Annotated[int, Field(strict=True, ge=0, le=MAX_COUNTER)]
 ClockQuality = Literal["synchronised", "unsynchronised", "estimated", "unknown"]

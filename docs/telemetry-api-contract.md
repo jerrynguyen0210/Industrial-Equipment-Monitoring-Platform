@@ -1,16 +1,71 @@
-# Telemetry API validation contract
+# Telemetry API ingestion contract
 
-The backend implements the request/response models and reusable HTTP validation
+The backend implements authenticated ingestion, request/response models and validation
 for `telemetry-batch.v1`, following sections 3, 5, and 7 of the
 [approved contract](Technical_Lead_Telemetry_Ingestion_Contract_Approval_Sprint01.pdf).
-The [OpenAPI 3.1 document](telemetry-openapi.json) describes the planned
+The [OpenAPI 3.1 document](telemetry-openapi.json) describes the implemented
 `POST /api/v1/telemetry/batches` operation, bearer authentication requirement,
 schemas, valid/null-time/mixed request examples, mixed outcomes, and HTTP 400 errors.
 
-This task does not mount the ingestion route. The running `/openapi.json` continues
-to describe the health API. Authentication, registry checks, duplicate/conflict
-classification, and commit orchestration must be connected before ingestion is
-enabled. Validation never returns `accepted` or `duplicate` by itself.
+The running `/openapi.json` includes this same operation alongside health routes.
+`app.telemetry_api` owns HTTP mapping; `app.gateway_auth` resolves credentials;
+`app.ingestion` owns authorization, classification and transaction coordination.
+Validation alone never returns `accepted` or `duplicate`.
+
+## Prototype credentials and authorization
+
+Set `GATEWAY_CREDENTIALS_JSON` to a JSON object mapping registered gateway IDs to
+unique bearer tokens. Generate tokens locally (for example, `secrets.token_urlsafe(32)`);
+send the corresponding token as `Authorization: Bearer <token>`. Multiple mappings
+support dedicated simulator gateways. Tokens are runtime secrets, never public
+frontend settings. Missing/empty configuration disables access, not health checks.
+Invalid JSON, duplicate IDs/tokens, invalid token syntax, and placeholder tokens
+fail startup without echoing values. Changes require restarting the backend.
+
+Missing, malformed, repeated or incorrect Authorization headers return 401 with
+`detail.reason: invalid_gateway_credential` and `WWW-Authenticate: Bearer`, before
+body parsing or database access. `X-Gateway-ID` does not grant or change identity.
+A token for an unregistered or disabled gateway, or a gateway under a disabled site,
+returns 403 `gateway_not_authorized` before processing items in a valid envelope.
+Payload `gateway_id`/`site_id`/`backend_received_at` fields are forbidden.
+
+Unknown devices return `rejected/unknown_device`; a device assigned to another
+gateway returns `rejected/wrong_gateway`. For this prototype, disabling a device
+revokes its gateway's ingestion eligibility and also returns `wrong_gateway`.
+This records the previously unspecified disabled-device mapping without adding a
+new item reason. Validation failures take precedence over ownership failures.
+The database transaction takes shared row locks on the authenticated gateway/site
+and existing device assignments until commit, so concurrent registry changes
+cannot authorize an insert using stale ownership. Shared locks permit concurrent
+ingestion. The separate read-only registry helper does not acquire these locks.
+
+This prototype uses an explicit runtime credential map. It has no credential
+management endpoints, expiry mechanism or production identity-provider integration.
+Use HTTPS for any deployed credential-bearing connection.
+
+## Persistence, retries and failure boundary
+
+All processable items share one transaction; permanent item rejections leave valid
+neighbors eligible for commit. PostgreSQL `ON CONFLICT DO NOTHING` against
+`uq_telemetry_identity` arbitrates concurrent identities. Existing rows are compared
+on `schema_version`, event identity, `measured_at`, `device_uptime_ms`, `metric`,
+`value`, `unit`, and `quality`. Receipt times and HTTP/batch metadata are excluded,
+as required by section 4.1 of the approval. Matching retries return `duplicate`;
+different immutable content returns `rejected/identity_conflict` and logs a safe
+conflict event. Neither case updates the original row or either receipt timestamp.
+
+New inserts omit `backend_received_at`, letting PostgreSQL `clock_timestamp()`
+assign UTC processing receipt time. Savepoints turn individual PostgreSQL data
+representation errors (for example, a finite number beyond PostgreSQL NUMERIC
+capacity) into `malformed_value` without rolling back valid peers. No arbitrary
+sensor range or temperature rounding is added.
+
+The service returns results only after its transaction commits. Database, pool,
+lock or commit errors return 503 `ingestion_unavailable` with a server-generated
+`batch_id`, no item results and no credential/payload details. A commit failure
+rolls back the transaction when possible. If the commit outcome is uncertain,
+retry the unchanged batch: already committed rows become duplicates. HTTP 200
+contains one ordered result per input, even when every item was rejected.
 
 ## Models and field rules
 
@@ -31,7 +86,7 @@ entities in `app.models`:
   strings, booleans, null, NaN, and infinities are not numbers in this contract.
   No sensor-specific range has been selected, so validation does not invent one.
   `value_out_of_range` remains available for that later domain check.
-- IDs are nonempty, case-sensitive strings of at most 128 characters, preserved
+- IDs are nonempty, case-sensitive strings of at most 128 characters, without NUL, preserved
   exactly. Boot IDs need not be UUIDs. Counters are integers from zero through
   `9223372036854775807`. These limits match the existing storage schema.
 - `measured_at` is required but nullable for every approved clock quality:
@@ -56,7 +111,7 @@ independently. Use this entry point for wire data, rather than `request.json()` 
 numbers before immutable-content comparisons.
 
 `read_telemetry_batch(request)` is the reusable FastAPI dependency. Run it after
-gateway authentication in the eventual ingestion adapter. Do not bind the nested
+gateway credential authentication in the ingestion adapter. Do not bind the nested
 `TelemetryBatch` directly as a FastAPI body parameter: that would reject an entire
 mixed batch when just one event is invalid. `TelemetryBatch` describes fully valid
 requests; the boundary deliberately retains invalid items to produce rejections.
@@ -114,8 +169,13 @@ timestamp ownership and normalization, finite/precise numbers, batch limits,
 error precedence, independent mixed items, HTTP 400 mapping, response invariants,
 examples, reference resolution, and generated-document drift. They need no database.
 Run the backend Ruff checks from the [development guide](../backend/README.md#development-checks).
+The PostgreSQL ingestion suite in `backend/tests/integration/test_ingestion.py`
+verifies the real route, durable storage, concurrent retry/conflict classification,
+ownership locks and commit failures. The [shared smoke suite](../tests/README.md)
+invokes the API-mode simulator against the packaged backend over HTTP and checks
+telemetry persistence across a full stack restart.
 
 The OpenAPI document is generated from the models using
 [Pydantic JSON Schema generation](https://docs.pydantic.dev/latest/concepts/json_schema/).
-The future adapter can describe its custom body parser using
+The adapter describes its custom body parser using
 [FastAPI OpenAPI configuration](https://fastapi.tiangolo.com/advanced/path-operation-advanced-configuration/).

@@ -33,7 +33,9 @@ The [telemetry storage schema](telemetry-storage.md) documents v1 fields, event
 identity uniqueness, UTC timestamps, device/time indexes, and migration recovery.
 The [telemetry API validation contract](telemetry-api-contract.md) defines request,
 quality, and response models, per-item validation, stable errors, and generated
-[OpenAPI examples](telemetry-openapi.json) for the future ingestion endpoint.
+[OpenAPI examples](telemetry-openapi.json) for the implemented ingestion endpoint.
+The [simulator quick start](../simulator/README.md) exercises credentials, durable
+persistence, matching retries and mixed per-item rejections over HTTP.
 The [Windows Docker testing guide](docker-testing.md) gives PowerShell commands
 for automated smoke tests, registry acceptance, and manual database inspection.
 The [CI guide](ci.md) documents automatic verification on every push and pull
