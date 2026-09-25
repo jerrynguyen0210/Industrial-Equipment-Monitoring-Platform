@@ -13,7 +13,7 @@ local copy. Do not overwrite an existing `.env` when refreshing examples.
 | [Backend](../backend/.env.example) | Native Uvicorn; reference for Alembic/seed | Uvicorn explicitly loads `--env-file .env` from `backend/`; shell variables win. Alembic/seed use exported shell variables only. Nonempty `DATABASE_URL` wins over `PG*`. |
 | [Frontend](../frontend/.env.example) | Native Vite | Shell wins, then mode-specific `.env.[mode].local` / `.env.[mode]`, then `.env.local` / `.env`, then code defaults. |
 | [Gateway](../gateway/.env.example) | Planned native gateway | Template only; native runtime/env loading is not implemented. MQTT and API credentials are separate. |
-| [Simulator](../simulator/.env.example) | Deterministic generator and API-only fixture sender | Reads exported `API_BASE_URL` and `GATEWAY_API_KEY`; `simulate.py --api-base-url` overrides the URL. Scenario options are CLI flags; no automatic `.env` loading. MQTT mode remains planned. |
+| [Simulator](../simulator/.env.example) | Deterministic generator, API sender, and MQTT device publisher | Reads exported `API_BASE_URL`, `GATEWAY_API_KEY`, and MQTT settings. CLI target flags override environment variables. Scenario options are CLI flags; no automatic `.env` loading. |
 
 Compose does **not** automatically load service-directory `.env` files. Application
 Docker contexts use allowlists, excluding local env files and secret directories.
@@ -31,8 +31,8 @@ firmware has no environment-variable loader yet.
 | Native backend `DATABASE_URL` | `postgresql://iemp:iemp-local-only@127.0.0.1:5432/iemp` | Requires a separately provisioned host database |
 | `VITE_API_BASE_URL` | `/api` | Browser API prefix; readiness appends `/health/ready` |
 | `API_PROXY_TARGET` | `http://127.0.0.1:8000` | Native Vite development proxy target, without `/api` |
-| `MQTT_HOST`, `MQTT_PORT` | `127.0.0.1`, `1883` | Planned native gateway/simulator broker address |
-| `MQTT_USERNAME`, `MQTT_PASSWORD_FILE` | Demo account and ignored local password path | Planned native client authentication; current gateway/simulator MQTT loaders are not implemented |
+| `MQTT_HOST`, `MQTT_PORT` | `127.0.0.1`, `1883` | Simulator MQTT broker address; gateway settings remain planned |
+| `MQTT_USERNAME`, `MQTT_PASSWORD_FILE` | Demo account and ignored local password path | Simulator MQTT device authentication; gateway settings remain planned |
 | `MQTT_AUTH_DIR` | `./secrets/mosquitto` | Compose read-only broker auth mount; generate it before starting Mosquitto |
 | `API_BASE_URL` | `http://127.0.0.1:8000/api` | Gateway/simulator API prefix |
 | `GATEWAY_API_KEY` | `replace-with-provisioned-...-credential` | Nonfunctional placeholder; replace with a generated token matching the backend map |

@@ -1,9 +1,11 @@
 # Local MQTT telemetry topic contract
 
 This is the prototype device-to-gateway transport on the local Mosquitto broker.
-The native gateway and firmware MQTT clients are not implemented yet; the broker,
-credentials, ACLs, sample event, and executable Compose check establish their
-shared interface. See [the local broker runbook](../infra/README.md) for setup.
+The native gateway and firmware MQTT clients are not implemented yet. The Python
+simulator can publish as a device; the broker, credentials, ACLs, sample event,
+and executable Compose check establish the shared interface. See
+[the simulator guide](../simulator/README.md) and
+[the local broker runbook](../infra/README.md) for setup.
 
 ## Topic and payload
 

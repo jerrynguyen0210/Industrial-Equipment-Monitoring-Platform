@@ -1,9 +1,9 @@
 # Simulator Coding Conventions
 
 Development rules for virtual devices, repeatable telemetry, fault injection,
-and load scenarios. The deterministic event generator, API fixture sender and their
-executable checks are documented in [README.md](README.md); MQTT device and load
-scenarios remain future work.
+and load scenarios. The deterministic event generator, MQTT device publisher,
+API fixture sender, and their executable checks are documented in
+[README.md](README.md); broader load scenarios remain future work.
 
 ## 1. Scope and shared rules
 

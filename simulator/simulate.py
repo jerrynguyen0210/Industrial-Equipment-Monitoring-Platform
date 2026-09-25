@@ -1,4 +1,4 @@
-"""Generate reproducible temperature events, or send them as direct HTTP batches."""
+"""Generate reproducible temperature events or deliver them over HTTP or MQTT."""
 
 import argparse
 import http.client
@@ -20,8 +20,10 @@ from events import (
     TemperatureProfile,
     batches,
     encode_batch,
+    generate_events,
     integer,
 )
+from mqtt_transport import MqttPublisher, validate_mqtt_target
 from send_batch import post_batch, validate_target
 
 
@@ -102,6 +104,56 @@ def run_scenario(
     return summary
 
 
+def run_mqtt_scenario(
+    scenario: Scenario,
+    publish,
+    *,
+    paced: bool = True,
+    clock=time.monotonic,
+    sleep=time.sleep,
+) -> dict:
+    """Publish device readings individually; count only broker PUBACKs as confirmed."""
+    started = clock()
+    summary = {
+        "planned": scenario.count,
+        "generated": 0,
+        "sent": 0,
+        "broker_acknowledged": 0,
+        "unconfirmed": 0,
+        "unsent": scenario.count,
+        "failures": 0,
+        "max_schedule_lag_seconds": 0.0,
+        "cancelled": False,
+    }
+    try:
+        for index, event in enumerate(generate_events(scenario)):
+            summary["generated"] += 1
+            if paced:
+                deadline = started + index * scenario.interval_ms / 1000
+                sleep(max(0.0, deadline - clock()))
+                summary["max_schedule_lag_seconds"] = max(
+                    summary["max_schedule_lag_seconds"], clock() - deadline
+                )
+            summary["sent"] += 1
+            summary["unconfirmed"] += 1
+            publish(event)
+            summary["broker_acknowledged"] += 1
+            summary["unconfirmed"] -= 1
+    except KeyboardInterrupt:
+        summary["cancelled"] = True
+    except (OSError, ValueError, RuntimeError, TypeError):
+        summary["failures"] += 1
+        summary["error"] = "MQTT transport failure; replay unchanged configuration"
+    summary["unsent"] = scenario.count - summary["sent"]
+    elapsed = max(0.0, clock() - started)
+    summary["duration_seconds"] = round(elapsed, 6)
+    summary["broker_acked_events_per_second"] = (
+        round(summary["broker_acknowledged"] / elapsed, 3) if elapsed else 0.0
+    )
+    summary["max_schedule_lag_seconds"] = round(summary["max_schedule_lag_seconds"], 6)
+    return summary
+
+
 def source_revision() -> str:
     try:
         result = subprocess.run(
@@ -152,17 +204,32 @@ def main() -> None:
         "--noise", type=float, default=0.0, help="Uniform noise +/- Celsius"
     )
     parser.add_argument("--batch-size", type=int, default=100)
-    parser.add_argument("--mode", choices=("generate", "http"), default="generate")
     parser.add_argument(
-        "--fast", action="store_true", help="Skip HTTP wall-clock pacing"
+        "--mode", choices=("generate", "http", "mqtt"), default="generate"
+    )
+    parser.add_argument(
+        "--fast", action="store_true", help="Skip HTTP/MQTT wall-clock pacing"
     )
     parser.add_argument("--api-base-url", default=os.environ.get("API_BASE_URL"))
+    parser.add_argument("--mqtt-host", default=os.environ.get("MQTT_HOST", "127.0.0.1"))
     parser.add_argument(
-        "--timeout", type=float, default=30.0, help="HTTP timeout seconds"
+        "--mqtt-port", type=int, default=os.environ.get("MQTT_PORT", "1883")
+    )
+    parser.add_argument("--mqtt-username", default=os.environ.get("MQTT_USERNAME"))
+    parser.add_argument(
+        "--mqtt-password-file", type=Path, default=os.environ.get("MQTT_PASSWORD_FILE")
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=30.0,
+        help="HTTP request or MQTT acknowledgement timeout seconds",
     )
     args = parser.parse_args()
     base_url = args.api_base_url or "http://127.0.0.1:8000/api"
     token = os.environ.get("GATEWAY_API_KEY", "")
+    mqtt_username = args.mqtt_username or args.device_id
+    mqtt_password = None
     try:
         scenario = Scenario(
             device_id=args.device_id,
@@ -187,19 +254,49 @@ def main() -> None:
             raise ValueError("timeout must be finite and between 0 (exclusive) and 300")
         if args.mode == "http":
             validate_target(base_url, token)
+        if args.mode == "mqtt":
+            if args.mqtt_password_file is None:
+                raise ValueError(
+                    "MQTT_PASSWORD_FILE or --mqtt-password-file is required"
+                )
+            mqtt_password = validate_mqtt_target(
+                args.device_id,
+                args.mqtt_host,
+                args.mqtt_port,
+                mqtt_username,
+                Path(args.mqtt_password_file),
+            )
     except (ValueError, OverflowError) as error:
         parser.error(str(error))
 
     def send(body, events):
         return post_batch(base_url, token, body, events, args.timeout)
 
-    summary = run_scenario(
-        scenario,
-        args.batch_size,
-        send=send if args.mode == "http" else None,
-        emit=lambda body: print(body.decode("utf-8"), flush=True),
-        paced=not args.fast,
-    )
+    if args.mode == "mqtt":
+        try:
+            publisher = MqttPublisher(
+                args.mqtt_host,
+                args.mqtt_port,
+                mqtt_username,
+                mqtt_password,
+                args.timeout,
+            )
+        except RuntimeError as error:
+            parser.error(str(error))
+        try:
+            summary = run_mqtt_scenario(
+                scenario, publisher.publish, paced=not args.fast
+            )
+        finally:
+            publisher.close()
+    else:
+        summary = run_scenario(
+            scenario,
+            args.batch_size,
+            send=send if args.mode == "http" else None,
+            emit=lambda body: print(body.decode("utf-8"), flush=True),
+            paced=not args.fast,
+        )
     config = asdict(scenario)
     config["start_time"] = scenario.start_time.isoformat()
     summary.update(
@@ -208,17 +305,23 @@ def main() -> None:
         python_version=platform.python_version(),
         source_revision=source_revision(),
         configuration=config,
-        batch_size=args.batch_size,
-        paced=args.mode == "http" and not args.fast,
+        batch_size=args.batch_size if args.mode != "mqtt" else None,
+        paced=args.mode in ("http", "mqtt") and not args.fast,
         timeout_seconds=args.timeout,
-        target=base_url if args.mode == "http" else None,
+        target=(
+            base_url
+            if args.mode == "http"
+            else f"mqtt://{args.mqtt_host}:{args.mqtt_port}"
+            if args.mode == "mqtt"
+            else None
+        ),
     )
     print(
         json.dumps(summary), file=sys.stderr if args.mode == "generate" else sys.stdout
     )
-    failed = (
-        summary["failures"] or summary["unconfirmed"] or summary["counts"]["rejected"]
-    )
+    failed = summary["failures"] or summary["unconfirmed"]
+    if args.mode != "mqtt":
+        failed = failed or summary["counts"]["rejected"]
     raise SystemExit(130 if summary["cancelled"] else int(bool(failed)))
 
 

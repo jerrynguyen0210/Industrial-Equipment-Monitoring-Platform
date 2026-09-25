@@ -324,6 +324,134 @@ def main() -> None:
                 no_retain.returncode == 27 and not no_retain.stdout,
                 "Telemetry was retained",
             )
+            simulator_session = f"simulator-{marker}"
+            mqtt(
+                "gateway-demo-001",
+                "mosquitto_sub",
+                "-c",
+                "-i",
+                simulator_session,
+                "-E",
+                "-t",
+                "equipment/+/telemetry",
+                "-q",
+                "1",
+            )
+            simulator_args = [
+                sys.executable,
+                str(ROOT / "simulator/simulate.py"),
+                "--device-id",
+                "device-demo-001",
+                "--run-id",
+                f"mqtt-{marker}",
+                "--seed",
+                "7",
+                "--profile",
+                "ramp",
+                "--temperature",
+                "20",
+                "--step",
+                "0.5",
+                "--interval-ms",
+                "100",
+                "--count",
+                "5",
+                "--reboot-every",
+                "2",
+                "--batch-size",
+                "2",
+            ]
+            generated = subprocess.run(
+                simulator_args,
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=True,
+                timeout=20,
+            )
+            simulator_mqtt_env = environment | {
+                "MQTT_HOST": "127.0.0.1",
+                "MQTT_PORT": str(published_port("mosquitto", 1883)),
+                "MQTT_USERNAME": "device-demo-001",
+                "MQTT_PASSWORD_FILE": str(auth_dir / "device-demo-001.password"),
+            }
+            simulator_mqtt = subprocess.run(
+                [*simulator_args, "--mode", "mqtt", "--fast"],
+                cwd=ROOT,
+                env=simulator_mqtt_env,
+                text=True,
+                capture_output=True,
+                check=True,
+                timeout=30,
+            )
+            mqtt_summary = json.loads(simulator_mqtt.stdout)
+            require(
+                mqtt_summary["broker_acknowledged"] == 5
+                and mqtt_summary["unconfirmed"] == mqtt_summary["unsent"] == 0,
+                "Simulator MQTT publishes were not all acknowledged",
+            )
+            received = mqtt(
+                "gateway-demo-001",
+                "mosquitto_sub",
+                "-c",
+                "-i",
+                simulator_session,
+                "-t",
+                "equipment/+/telemetry",
+                "-q",
+                "1",
+                "-C",
+                "5",
+                "-W",
+                "10",
+                "-v",
+            ).stdout.splitlines()
+            expected_events = [
+                {"schema_version": 1}
+                | {
+                    key: value
+                    for key, value in item.items()
+                    if key != "gateway_received_at"
+                }
+                for line in generated.stdout.splitlines()
+                for item in json.loads(line)["events"]
+            ]
+            received_events = []
+            for line in received:
+                received_topic, _, payload = line.partition(" ")
+                require(received_topic == telemetry_topic, "Wrong simulator MQTT topic")
+                received_events.append(json.loads(payload))
+            require(
+                received_events == expected_events,
+                "Gateway subscription changed or lost simulator event content",
+            )
+            no_simulator_retain = mqtt(
+                "gateway-demo-001",
+                "mosquitto_sub",
+                "-t",
+                telemetry_topic,
+                "-q",
+                "1",
+                "-C",
+                "1",
+                "-W",
+                "2",
+                check=False,
+            )
+            require(
+                no_simulator_retain.returncode == 27 and not no_simulator_retain.stdout,
+                "Simulator retained telemetry",
+            )
+            require(
+                [item["sequence_number"] for item in received_events] == [0, 1, 0, 1, 0]
+                and len({item["boot_id"] for item in received_events}) == 3,
+                "Simulator boot or sequence identity changed over MQTT",
+            )
+            print(
+                "PASS: simulator QoS 1 delivery and boot/sequence identity "
+                "at gateway subscription",
+                flush=True,
+            )
             anonymous = subprocess.run(
                 [
                     *command,

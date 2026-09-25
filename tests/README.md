@@ -142,6 +142,10 @@ It verifies:
   device publishes the sample event at QoS 1; the authenticated gateway receives
   it at QoS 1. Anonymous clients are refused and wrong-topic device messages
   are not delivered; telemetry is not retained.
+- The simulator publishes five ramp-profile device messages at QoS 1 through the
+  published Mosquitto port. The authenticated gateway subscription receives each
+  event with its exact payload, three boot IDs, reset sequence numbers, and no
+  retained telemetry.
 - The backend image can apply its Alembic migration and run the registry seed
   twice, producing the expected enabled site/gateway/device hierarchy.
 - The API-mode simulator submits a valid batch, matching replay and mixed batch,

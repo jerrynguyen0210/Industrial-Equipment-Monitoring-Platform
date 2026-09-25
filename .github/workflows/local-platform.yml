@@ -38,6 +38,8 @@ jobs:
             backend/requirements-dev.txt
       - name: Install backend development dependencies
         run: python -m pip install --require-hashes -r backend/requirements-dev.txt
+      - name: Install simulator MQTT dependency
+        run: python -m pip install --require-hashes -r simulator/requirements.txt
       - name: Lint Python
         run: python -m ruff check --config backend/pyproject.toml backend simulator tests
       - name: Check Python formatting
@@ -88,6 +90,8 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
+      - name: Install simulator MQTT dependency
+        run: python -m pip install --require-hashes -r simulator/requirements.txt
       - name: Validate Compose
         run: docker compose config --quiet
       - name: Exercise isolated local platform

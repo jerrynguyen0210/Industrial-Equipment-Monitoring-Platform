@@ -1,11 +1,12 @@
 # Simulator
 
-The Python 3.13+ simulator uses only the standard library. `simulate.py` generates
-deterministic temperature events for development and tests. `send_batch.py` sends
-existing JSON fixtures. Both support direct `POST /api/v1/telemetry/batches`, check
-ordered per-item results, and report accepted, duplicate, rejected and unconfirmed
-counts as JSON. This API-only boundary bypasses MQTT and the native gateway;
-hardware, gateway durability and load testing remain separate work.
+The Python 3.13+ simulator generates deterministic temperature events for
+development and tests. Offline generation and direct HTTP delivery use only the
+standard library; MQTT device mode uses the pinned dependency in
+`requirements.txt`. `send_batch.py` sends existing JSON fixtures over HTTP.
+The HTTP modes check ordered per-item results and report accepted, duplicate,
+rejected and unconfirmed counts as JSON. MQTT mode reports broker acknowledgements,
+which do not imply gateway intake or backend acceptance.
 
 ## Generate a deterministic scenario
 
@@ -44,11 +45,14 @@ Generated output is ignored by Git. The unchanged file can be sent with
 | `--amplitude` | `5` | Nonnegative sine amplitude in Celsius. |
 | `--period` | `60` | Sine period in samples, 1-1,000,000. |
 | `--noise` | `0` | Nonnegative uniform noise half-width in Celsius. |
-| `--batch-size` | `100` | 1-500 events per HTTP request or output line. |
-| `--mode` | `generate` | Offline generation or direct `http`. |
-| `--fast` | Off | Skip HTTP pacing, keeping all virtual timestamps unchanged. |
+| `--batch-size` | `100` | 1-500 events per HTTP request or output line; unused in MQTT mode. |
+| `--mode` | `generate` | Offline generation, direct `http`, or MQTT device publish. |
+| `--fast` | Off | Skip HTTP/MQTT pacing, keeping all virtual timestamps unchanged. |
 | `--api-base-url` | Environment/local | Overrides `API_BASE_URL`; fallback `http://127.0.0.1:8000/api`. |
-| `--timeout` | `30` | HTTP timeout in seconds, greater than 0 and at most 300. |
+| `--mqtt-host`, `--mqtt-port` | Environment/local | Broker host and port; fallback `127.0.0.1:1883`. |
+| `--mqtt-username` | Environment/device ID | Device account; fallback to `--device-id`. |
+| `--mqtt-password-file` | `MQTT_PASSWORD_FILE` | Required in MQTT mode; one-line local secret file. |
+| `--timeout` | `30` | HTTP request or MQTT acknowledgement timeout in seconds, greater than 0 and at most 300. |
 
 For zero-based sample index `i`, constant is `temperature`, ramp is
 `temperature + step*i`, and sine is `temperature + amplitude*sin(2*pi*i/period)`.
@@ -76,6 +80,56 @@ models a synchronized device and a gateway with zero receipt delay, so original
 contains `backend_received_at`. The default historical start is for fixtures.
 For current-time development, pass an explicit current `--start-time` and retain
 it for retries. Historical events are not evidence of a live device.
+
+## Publish device telemetry through Mosquitto
+
+From the repository root, provision the ignored local MQTT credentials once, install
+the pinned MQTT client, and start the broker:
+
+```powershell
+.\.venv\Scripts\python.exe infra/mosquitto/provision.py
+.\.venv\Scripts\python.exe -m pip install --require-hashes -r simulator/requirements.txt
+docker compose up -d --wait mosquitto
+$env:MQTT_PASSWORD_FILE = 'secrets/mosquitto/device-demo-001.password'
+```
+
+The provisioner refuses to overwrite existing credentials; skip it if the local
+`secrets/mosquitto/` directory is already provisioned. `.env` files are not loaded
+automatically. Relative password paths are resolved from the shell's working
+directory. Set `MQTT_HOST`, `MQTT_PORT`, and `MQTT_USERNAME` for a different broker
+or device account, or pass the corresponding `--mqtt-*` flags. The MQTT device ID
+must be a single topic level and the broker account must have write permission to
+its topic.
+
+To observe five readings at the gateway subscription, start this in a second
+PowerShell terminal before publishing:
+
+```powershell
+docker compose exec -T --user 0 mosquitto sh -c 'mosquitto_sub -h 127.0.0.1 -u gateway-demo-001 -P "$(cat /mosquitto/config/auth/gateway-demo-001.password)" -t "equipment/+/telemetry" -q 1 -C 5 -W 30 -v'
+```
+
+Then publish from the first terminal:
+
+```powershell
+.\.venv\Scripts\python.exe simulator/simulate.py --device-id device-demo-001 --run-id mqtt-demo-001 --seed 7 --profile ramp --temperature 20 --step 0.5 --interval-ms 1000 --count 5 --reboot-every 2 --mode mqtt
+```
+
+Each MQTT message is one UTF-8 JSON object at QoS 1 with retain disabled, on
+`equipment/{device_id}/telemetry`. It has `schema_version: 1` and the device event
+fields, without `gateway_received_at` or backend-owned fields. The five sequence
+numbers are `0,1,0,1,0` across three boot IDs. `--interval-ms 1000` sends at one
+reading per second; `--interval-ms 200` sends at five per second. `--fast` skips
+real-time pacing while retaining the same virtual measurement timestamps.
+
+The JSON summary records the target, scenario, attempted sends, QoS 1 broker
+acknowledgements, unconfirmed readings, unsent readings, actual rate and schedule
+lag. A missing PUBACK or transport failure stops later publishes and exits `1`;
+the affected reading remains unconfirmed. Ctrl+C exits `130`. There is no automatic
+retry or durable queue. Replay the exact same configuration and run ID to retain
+the original event identities and immutable content; QoS 1 can deliver duplicates.
+Broker PUBACK confirms broker receipt only. The native gateway is currently
+unavailable, so the authenticated gateway subscription is the simulator's
+transport acceptance boundary.
 
 ## Send generated batches over HTTP
 
@@ -180,10 +234,12 @@ Pop-Location
 ```
 
 Unit/CLI tests cover known seeded values, all three profiles, byte-identical replay,
-batch boundaries, reboot identities, pacing, cancellation, real loopback HTTP,
-response loss, redirects and invalid configuration. The shared smoke suite creates
-a fresh isolated stack, generates its own token, runs fixtures and a generated ramp
-with two reboots, replays it, verifies PostgreSQL values/counters/receipt times, and
-checks persistence across stack restart. CI runs both suites on every push/pull request.
+batch boundaries, reboot identities, pacing, cancellation, QoS 1 publish settings,
+real loopback HTTP, response loss, redirects and invalid configuration. The shared
+smoke suite creates a fresh isolated stack, generates its own token, runs fixtures
+and a generated ramp with two reboots, checks simulator MQTT messages at the
+authenticated gateway subscription, replays HTTP data, verifies PostgreSQL
+values/counters/receipt times, and checks persistence across stack restart. CI
+runs both suites on every push/pull request.
 See [Simulator Coding Conventions](CODING_CONVENTIONS.md) and the
 [ingestion contract](../docs/telemetry-api-contract.md).
