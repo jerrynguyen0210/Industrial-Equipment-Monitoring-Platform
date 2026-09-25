@@ -106,8 +106,8 @@ python -m venv .venv
 # Windows PowerShell: .\.venv\Scripts\Activate.ps1
 # Linux/macOS: source .venv/bin/activate
 python -m pip install --require-hashes -r backend/requirements-dev.txt
-python -m ruff check --config backend/pyproject.toml backend simulator tests/compose_smoke.py
-python -m ruff format --check --config backend/pyproject.toml backend simulator tests/compose_smoke.py
+python -m ruff check --config backend/pyproject.toml backend simulator tests
+python -m ruff format --check --config backend/pyproject.toml backend simulator tests
 cd backend
 python -m unittest discover -s tests -v
 ```

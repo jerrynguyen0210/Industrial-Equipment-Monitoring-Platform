@@ -11,7 +11,10 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime
 from pathlib import Path
+
+from telemetry_scenarios import load_scenarios
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -267,6 +270,67 @@ def main() -> None:
                 "PASS: simulator HTTP ingestion, retries, mixed items and persistence",
                 flush=True,
             )
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "tests/telemetry_scenarios.py"),
+                    "--run-id",
+                    "compose-qa",
+                    "--output-dir",
+                    directory,
+                ],
+                env=simulator_environment,
+                check=True,
+                timeout=150,
+            )
+            # Compare every field of every accepted identity, not only row counts.
+            # Expectations come from the fixture catalog, never backend validation.
+            expected_qa_rows = []
+            qa_scenarios = load_scenarios("compose-qa")
+            for scenario in qa_scenarios:
+                for step in scenario["steps"]:
+                    for item, outcome in zip(
+                        step["batch"]["events"], step["expected"], strict=True
+                    ):
+                        if outcome == "accepted":
+                            row = item | {"schema_version": 1}
+                            for field in ("measured_at", "gateway_received_at"):
+                                if row[field] is not None:
+                                    row[field] = datetime.fromisoformat(
+                                        row[field]
+                                    ).isoformat()
+                            expected_qa_rows.append(row)
+            qa_query = (
+                "SELECT COALESCE(jsonb_agg(to_jsonb(t) - 'id' - 'backend_received_at' "
+                "ORDER BY boot_id, sequence_number), '[]'::jsonb) FROM telemetry t "
+                "WHERE boot_id LIKE 'qa-compose-qa-%'"
+            )
+            require(
+                len(expected_qa_rows)
+                == sum(case["expected_rows"] for case in qa_scenarios)
+                and json.loads(sql(qa_query))
+                == sorted(
+                    expected_qa_rows,
+                    key=lambda row: (row["boot_id"], row["sequence_number"]),
+                ),
+                "QA rows differ: rejected insert, changed original, or missing data",
+            )
+            qa_snapshot_query = (
+                "SELECT jsonb_agg(to_jsonb(t) ORDER BY boot_id, sequence_number) "
+                "FROM telemetry t WHERE boot_id LIKE 'qa-compose-qa-%'"
+            )
+            qa_snapshot = sql(qa_snapshot_query)
+            require(
+                all(
+                    row["backend_received_at"] is not None
+                    for row in json.loads(qa_snapshot)
+                ),
+                "QA accepted event has no server receipt time",
+            )
+            print(
+                "PASS: eight QA contract edge cases and exact persisted rows",
+                flush=True,
+            )
             generated_query = (
                 "SELECT json_agg(json_build_array(sequence_number, device_uptime_ms, "
                 "value) ORDER BY measured_at), count(DISTINCT boot_id) "
@@ -378,6 +442,10 @@ def main() -> None:
             require(sql("SELECT value FROM compose_smoke") == marker, "SQL data lost")
             require(sql(registry_query) == "device-demo-001", "Registry data lost")
             require(sql(telemetry_query) == "2", "Telemetry data lost")
+            require(
+                sql(qa_snapshot_query) == qa_snapshot,
+                "QA telemetry changed after restart",
+            )
             require(
                 sql(generated_query) == generated_rows + "|" + boot_count,
                 "Generated simulator telemetry lost",

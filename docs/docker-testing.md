@@ -36,10 +36,11 @@ uses only Python's standard library, so a separate Python 3.13+ installation als
 works. The first run downloads images and builds the backend/frontend; it can
 take several minutes before the first PASS line.
 
-Expected output includes eight PASS lines covering:
+Expected output includes nine PASS lines covering:
 
 - Packaged migration and repeatable registry seed.
 - Simulator HTTP ingestion, duplicate replay, mixed outcomes and telemetry persistence.
+- All eight QA contract edge cases with exact PostgreSQL row assertions.
 - Deterministic generated temperatures, reboot identities/counters and duplicate replay.
 - Health checks, frontend proxy, PostgreSQL queries, and MQTT.
 - MQTT and frontend availability during a backend outage.

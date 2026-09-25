@@ -164,6 +164,11 @@ coverage belongs to the backend contract tests. It is not a durable delivery que
 
 ## Verification
 
+The shared [QA edge-case runner](../tests/README.md#telemetry-contract-edge-cases)
+adds reusable duplicate, identity-conflict, invalid-unit, malformed-value,
+unknown-device, historical, out-of-order and mixed-batch fixtures. It can export
+standalone request files or assert the expected outcomes against this API setup.
+
 ```powershell
 # From the repository root, with backend development dependencies installed:
 .\.venv\Scripts\python.exe -m ruff check --config backend/pyproject.toml simulator
