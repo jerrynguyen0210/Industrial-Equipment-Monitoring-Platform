@@ -1,0 +1,618 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Telemetry ingestion contract",
+    "version": "telemetry-batch.v1",
+    "description": "Contract for the future ingestion endpoint. Models and validation are implemented; authentication, persistence orchestration and this route are not yet installed in the running application."
+  },
+  "paths": {
+    "/api/v1/telemetry/batches": {
+      "post": {
+        "operationId": "ingestTelemetryBatch",
+        "summary": "Ingest a version 1 telemetry batch",
+        "description": "Authenticate first, validate the envelope, then classify each item independently. Invalid items do not block valid ones. One result per item in input order; accepted requires a durable database commit. Unknown identity fields on bad items are null. Structural item errors take precedence over metric, then unit errors.",
+        "x-implementation-status": "models-and-validation-only",
+        "security": [
+          {
+            "GatewayCredential": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelemetryBatch"
+              },
+              "examples": {
+                "valid": {
+                  "summary": "F01: valid temperature reading",
+                  "value": {
+                    "schema_version": 1,
+                    "events": [
+                      {
+                        "device_id": "motor-001",
+                        "boot_id": "boot-a",
+                        "sequence_number": 100,
+                        "measured_at": "2026-09-19T00:30:00Z",
+                        "device_uptime_ms": 534000,
+                        "gateway_received_at": "2026-09-19T00:30:01Z",
+                        "metric": "temperature",
+                        "value": 31.4,
+                        "unit": "celsius",
+                        "quality": {
+                          "reading": "valid",
+                          "clock": "synchronised"
+                        }
+                      }
+                    ]
+                  }
+                },
+                "unknown_clock": {
+                  "summary": "Explicitly null measurement time with unknown clock quality",
+                  "value": {
+                    "schema_version": 1,
+                    "events": [
+                      {
+                        "device_id": "motor-001",
+                        "boot_id": "boot-a",
+                        "sequence_number": 100,
+                        "measured_at": null,
+                        "device_uptime_ms": 534000,
+                        "gateway_received_at": "2026-09-19T00:30:01Z",
+                        "metric": "temperature",
+                        "value": 31.4,
+                        "unit": "celsius",
+                        "quality": {
+                          "reading": "valid",
+                          "clock": "unknown"
+                        }
+                      }
+                    ]
+                  }
+                },
+                "mixed": {
+                  "summary": "F05: new events, matching retry, and an invalid unit",
+                  "description": "Assumes committed F01; validate each item independently.",
+                  "value": {
+                    "schema_version": 1,
+                    "events": [
+                      {
+                        "device_id": "motor-001",
+                        "boot_id": "boot-a",
+                        "sequence_number": 101,
+                        "measured_at": "2026-09-19T00:30:00Z",
+                        "device_uptime_ms": 534000,
+                        "gateway_received_at": "2026-09-19T00:30:01Z",
+                        "metric": "temperature",
+                        "value": 31.4,
+                        "unit": "celsius",
+                        "quality": {
+                          "reading": "valid",
+                          "clock": "synchronised"
+                        }
+                      },
+                      {
+                        "device_id": "motor-001",
+                        "boot_id": "boot-a",
+                        "sequence_number": 100,
+                        "measured_at": "2026-09-19T00:30:00Z",
+                        "device_uptime_ms": 534000,
+                        "gateway_received_at": "2026-09-19T00:30:01Z",
+                        "metric": "temperature",
+                        "value": 31.4,
+                        "unit": "celsius",
+                        "quality": {
+                          "reading": "valid",
+                          "clock": "synchronised"
+                        }
+                      },
+                      {
+                        "device_id": "motor-001",
+                        "boot_id": "boot-a",
+                        "sequence_number": 102,
+                        "measured_at": "2026-09-19T00:30:00Z",
+                        "device_uptime_ms": 534000,
+                        "gateway_received_at": "2026-09-19T00:30:01Z",
+                        "metric": "temperature",
+                        "value": 31.4,
+                        "unit": "fahrenheit",
+                        "quality": {
+                          "reading": "valid",
+                          "clock": "synchronised"
+                        }
+                      },
+                      {
+                        "device_id": "motor-001",
+                        "boot_id": "boot-a",
+                        "sequence_number": 103,
+                        "measured_at": "2026-09-19T00:30:00Z",
+                        "device_uptime_ms": 534000,
+                        "gateway_received_at": "2026-09-19T00:30:01Z",
+                        "metric": "temperature",
+                        "value": 31.4,
+                        "unit": "celsius",
+                        "quality": {
+                          "reading": "valid",
+                          "clock": "synchronised"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Processing and commit succeeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelemetryBatchResponse"
+                },
+                "examples": {
+                  "mixed": {
+                    "value": {
+                      "batch_id": "01K5EXAMPLE",
+                      "results": [
+                        {
+                          "device_id": "motor-001",
+                          "boot_id": "boot-a",
+                          "sequence_number": 101,
+                          "outcome": "accepted"
+                        },
+                        {
+                          "device_id": "motor-001",
+                          "boot_id": "boot-a",
+                          "sequence_number": 100,
+                          "outcome": "duplicate"
+                        },
+                        {
+                          "device_id": "motor-001",
+                          "boot_id": "boot-a",
+                          "sequence_number": 102,
+                          "outcome": "rejected",
+                          "reason": "invalid_unit"
+                        },
+                        {
+                          "device_id": "motor-001",
+                          "boot_id": "boot-a",
+                          "sequence_number": 103,
+                          "outcome": "accepted"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid envelope; no item processing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "detail"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "$ref": "#/components/schemas/TelemetryBatchError"
+                    }
+                  }
+                },
+                "examples": {
+                  "unsupported_version": {
+                    "value": {
+                      "detail": {
+                        "reason": "unsupported_schema_version",
+                        "message": "Only schema_version 1 is supported.",
+                        "details": [
+                          {
+                            "loc": [
+                              "schema_version"
+                            ],
+                            "code": "literal_error",
+                            "message": "Input should be 1"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid gateway credential"
+          },
+          "403": {
+            "description": "Gateway credential is not authorized"
+          },
+          "429": {
+            "description": "Transient failure; keep queued and retry"
+          },
+          "5XX": {
+            "description": "Transient server/commit failure; no accepted claims"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "TelemetryBatch": {
+        "additionalProperties": false,
+        "description": "Fully valid batch schema. HTTP validation must classify items independently.",
+        "properties": {
+          "schema_version": {
+            "const": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/TelemetryEvent"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Events",
+            "type": "array"
+          }
+        },
+        "required": [
+          "schema_version",
+          "events"
+        ],
+        "title": "TelemetryBatch",
+        "type": "object"
+      },
+      "TelemetryBatchError": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "enum": [
+              "unsupported_schema_version",
+              "batch_too_large",
+              "malformed_batch"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationDetail"
+            },
+            "title": "Details",
+            "type": "array"
+          }
+        },
+        "required": [
+          "reason",
+          "message"
+        ],
+        "title": "TelemetryBatchError",
+        "type": "object"
+      },
+      "TelemetryBatchResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "batch_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Batch Id",
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/TelemetryResponseItem"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "batch_id",
+          "results"
+        ],
+        "title": "TelemetryBatchResponse",
+        "type": "object"
+      },
+      "TelemetryEvent": {
+        "additionalProperties": false,
+        "description": "A valid reading; validation alone never establishes acceptance or ownership.",
+        "properties": {
+          "device_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Device Id",
+            "type": "string"
+          },
+          "boot_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Boot Id",
+            "type": "string"
+          },
+          "sequence_number": {
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "title": "Sequence Number",
+            "type": "integer"
+          },
+          "measured_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required, nullable device measurement time. Only a non-null time with synchronised clock quality is trustworthy. Other clock qualities preserve supplied times; receipt times never replace this value.",
+            "title": "Measured At"
+          },
+          "device_uptime_ms": {
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "title": "Device Uptime Ms",
+            "type": "integer"
+          },
+          "gateway_received_at": {
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+            "title": "Gateway Received At",
+            "type": "string"
+          },
+          "metric": {
+            "const": "temperature",
+            "title": "Metric",
+            "type": "string"
+          },
+          "value": {
+            "description": "Finite JSON number in degrees Celsius.",
+            "title": "Value",
+            "type": "number"
+          },
+          "unit": {
+            "const": "celsius",
+            "title": "Unit",
+            "type": "string"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/TelemetryQuality"
+          }
+        },
+        "required": [
+          "device_id",
+          "boot_id",
+          "sequence_number",
+          "measured_at",
+          "device_uptime_ms",
+          "gateway_received_at",
+          "metric",
+          "value",
+          "unit",
+          "quality"
+        ],
+        "title": "TelemetryEvent",
+        "type": "object"
+      },
+      "TelemetryQuality": {
+        "additionalProperties": false,
+        "properties": {
+          "reading": {
+            "const": "valid",
+            "title": "Reading",
+            "type": "string"
+          },
+          "clock": {
+            "enum": [
+              "synchronised",
+              "unsynchronised",
+              "estimated",
+              "unknown"
+            ],
+            "title": "Clock",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reading",
+          "clock"
+        ],
+        "title": "TelemetryQuality",
+        "type": "object"
+      },
+      "TelemetryResponseItem": {
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "else": {
+              "properties": {
+                "reason": {
+                  "type": "null"
+                }
+              }
+            },
+            "if": {
+              "properties": {
+                "outcome": {
+                  "const": "rejected"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "reason"
+              ]
+            }
+          },
+          {
+            "if": {
+              "not": {
+                "properties": {
+                  "reason": {
+                    "const": "malformed_value"
+                  }
+                },
+                "required": [
+                  "reason"
+                ]
+              }
+            },
+            "then": {
+              "properties": {
+                "device_id": {
+                  "type": "string"
+                },
+                "boot_id": {
+                  "type": "string"
+                },
+                "sequence_number": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        ],
+        "description": "One result per input item, in input order. Null identity means malformed data.",
+        "properties": {
+          "device_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "boot_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Boot Id"
+          },
+          "sequence_number": {
+            "anyOf": [
+              {
+                "maximum": 9223372036854775807,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sequence Number"
+          },
+          "outcome": {
+            "enum": [
+              "accepted",
+              "duplicate",
+              "rejected"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "unknown_device",
+                  "wrong_gateway",
+                  "invalid_metric",
+                  "invalid_unit",
+                  "value_out_of_range",
+                  "malformed_value",
+                  "identity_conflict"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "device_id",
+          "boot_id",
+          "sequence_number",
+          "outcome"
+        ],
+        "title": "TelemetryResponseItem",
+        "type": "object"
+      },
+      "ValidationDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Loc",
+            "type": "array"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "code",
+          "message"
+        ],
+        "title": "ValidationDetail",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "GatewayCredential": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

@@ -76,9 +76,10 @@ Writers omit `backend_received_at` so the database supplies its own clock time
 at insertion, rather than the potentially earlier transaction start time.
 This records backend processing receipt; it does not record commit completion.
 The persistence model is a trusted internal interface, not a request schema.
-The future request schema must exclude/reject client-supplied `backend_received_at`
-and must never pass arbitrary request fields to the model. Backend or gateway
-receipt fields must not be overwritten during duplicate handling.
+The [request schema](telemetry-api-contract.md) rejects client-supplied
+`backend_received_at`; ingestion must never pass arbitrary request fields to the
+model. Backend or gateway receipt fields must not be overwritten during
+duplicate handling.
 
 ## Device/time queries
 

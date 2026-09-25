@@ -43,8 +43,11 @@ schema changes; demo data is inserted only by the explicit seed command below.
 The [telemetry storage schema](../docs/telemetry-storage.md) adds all v1 contract
 fields, database-generated backend receipt time, UTC timestamps, nullable
 measurement time, unique event identity, and device/time indexes.
-Authentication and telemetry ingestion are separate workstreams. Health responses
-do not acknowledge telemetry, and readiness still checks connectivity only.
+The [telemetry API validation contract](../docs/telemetry-api-contract.md) supplies
+strict request/response models, independent per-item validation, and a generated
+[OpenAPI contract with examples](../docs/telemetry-openapi.json). The ingestion route
+is not mounted yet; authentication and durable ingestion remain separate work.
+Health responses do not acknowledge telemetry, and readiness checks connectivity only.
 
 ## Registry migrations and demo seed
 

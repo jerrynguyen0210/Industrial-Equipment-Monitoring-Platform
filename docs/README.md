@@ -31,6 +31,9 @@ The [minimum registry](registry.md) documents site/gateway/device ownership,
 enabled states, PostgreSQL constraints, migrations, demo seeding, and verification.
 The [telemetry storage schema](telemetry-storage.md) documents v1 fields, event
 identity uniqueness, UTC timestamps, device/time indexes, and migration recovery.
+The [telemetry API validation contract](telemetry-api-contract.md) defines request,
+quality, and response models, per-item validation, stable errors, and generated
+[OpenAPI examples](telemetry-openapi.json) for the future ingestion endpoint.
 The [Windows Docker testing guide](docker-testing.md) gives PowerShell commands
 for automated smoke tests, registry acceptance, and manual database inspection.
 The [CI guide](ci.md) documents automatic verification on every push and pull
