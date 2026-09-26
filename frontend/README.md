@@ -10,12 +10,14 @@ API integration, telemetry presentation, accessibility, security, and testing.
 ## Setup and validation
 
 The app uses React, strict TypeScript, Vite, Node.js 24.15+ (below 25), and npm
-with a committed lockfile. The Overview route (`/`) and Service Status route
-(`/status`) share the dashboard layout. Overview fetches registered devices and
-their latest stored temperatures from `GET /api/v1/devices`, with explicit
+with a committed lockfile. Overview (`/`), History (`/history`), and Service
+Status (`/status`) share the dashboard layout. Overview fetches registered
+devices and their latest stored temperatures from `GET /api/v1/devices`, with explicit
 loading, empty, and error states. Service Status displays backend/database
-readiness. History and alert evaluation are not implemented; active alert counts
-are shown as unavailable.
+readiness. History queries the [backend history API](../docs/history-api.md),
+plots measurement-time points with visible gaps, and lets operators switch
+between UTC and local display. Alert evaluation is not implemented; active alert
+counts are shown as unavailable.
 
 From the repository root, provision local MQTT credentials once, then build and
 start Compose:

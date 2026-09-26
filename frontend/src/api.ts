@@ -9,7 +9,7 @@ export type ReadinessResponse = {
 };
 
 export type LatestReading = {
-  value: number;
+  value: number | string;
   unit: string;
   measured_at: string | null;
   clock_quality: "synchronised" | "unsynchronised" | "estimated" | "unknown";
@@ -19,6 +19,21 @@ export type DeviceStatus = {
   device_id: string;
   name: string;
   latest_reading: LatestReading | null;
+};
+
+export type HistoryPoint = {
+  measured_at: string;
+  value: number | string;
+  gap_before: boolean;
+};
+
+export type DeviceHistory = {
+  device_id: string;
+  unit: string;
+  range_start: string;
+  range_end: string;
+  truncated: boolean;
+  points: HistoryPoint[];
 };
 
 function isReadinessResponse(value: unknown): value is ReadinessResponse {
@@ -52,12 +67,20 @@ export async function getReadiness(
   return body;
 }
 
+function isTemperatureValue(value: unknown): value is number | string {
+  if (typeof value === "number") return Number.isFinite(value);
+  return (
+    typeof value === "string" &&
+    /^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(value) &&
+    Number.isFinite(Number(value))
+  );
+}
+
 function isLatestReading(value: unknown): value is LatestReading {
   if (typeof value !== "object" || value === null) return false;
   if (
     !("value" in value) ||
-    typeof value.value !== "number" ||
-    !Number.isFinite(value.value) ||
+    !isTemperatureValue(value.value) ||
     !("unit" in value) ||
     typeof value.unit !== "string" ||
     !("measured_at" in value) ||
@@ -107,4 +130,66 @@ export async function getDevices(signal: AbortSignal): Promise<DeviceStatus[]> {
   }
 
   return body.devices;
+}
+
+function isTimestamp(value: unknown): value is string {
+  return typeof value === "string" && Number.isFinite(Date.parse(value));
+}
+
+function isHistoryPoint(value: unknown): value is HistoryPoint {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "measured_at" in value &&
+    isTimestamp(value.measured_at) &&
+    "value" in value &&
+    isTemperatureValue(value.value) &&
+    "gap_before" in value &&
+    typeof value.gap_before === "boolean"
+  );
+}
+
+function isDeviceHistory(value: unknown): value is DeviceHistory {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "device_id" in value &&
+    typeof value.device_id === "string" &&
+    "unit" in value &&
+    typeof value.unit === "string" &&
+    "range_start" in value &&
+    isTimestamp(value.range_start) &&
+    "range_end" in value &&
+    isTimestamp(value.range_end) &&
+    "truncated" in value &&
+    typeof value.truncated === "boolean" &&
+    "points" in value &&
+    Array.isArray(value.points) &&
+    value.points.every(isHistoryPoint)
+  );
+}
+
+export async function getDeviceHistory(
+  deviceId: string,
+  from: Date,
+  to: Date,
+  signal: AbortSignal,
+): Promise<DeviceHistory> {
+  const query = new URLSearchParams({
+    from: from.toISOString(),
+    to: to.toISOString(),
+  });
+  const response = await fetch(
+    `${apiBaseUrl}/v1/devices/${encodeURIComponent(deviceId)}/telemetry/history?${query}`,
+    { signal, cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw new Error(`History request failed with HTTP ${response.status}`);
+  }
+
+  const body: unknown = await response.json();
+  if (!isDeviceHistory(body) || body.device_id !== deviceId) {
+    throw new Error("Invalid history response");
+  }
+  return body;
 }

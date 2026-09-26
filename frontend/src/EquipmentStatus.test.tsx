@@ -43,7 +43,7 @@ describe("equipment dashboard", () => {
             device_id: "device-demo-001",
             name: "Demo device",
             latest_reading: {
-              value: 24.6,
+              value: "24.6",
               unit: "celsius",
               measured_at: "2026-09-26T02:04:28Z",
               clock_quality: "synchronised",

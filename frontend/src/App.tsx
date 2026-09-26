@@ -9,6 +9,7 @@ import {
 } from "react";
 import { PlatformStatus } from "./PlatformStatus";
 import { EquipmentStatus } from "./EquipmentStatus";
+import { History } from "./History";
 
 const navigationEvent = "iemp:navigate";
 
@@ -125,6 +126,23 @@ function ServiceStatus() {
   );
 }
 
+function HistoryPage() {
+  return (
+    <>
+      <div className="page-heading">
+        <p className="eyebrow">Equipment monitoring</p>
+        <h1 id="page-title" tabIndex={-1}>
+          History
+        </h1>
+        <p className="page-description">
+          Explore recent temperature measurements for one device.
+        </p>
+      </div>
+      <History />
+    </>
+  );
+}
+
 function NotFound() {
   return (
     <div className="not-found">
@@ -145,9 +163,11 @@ export function App() {
   const pageName =
     path === "/"
       ? "Overview"
-      : path === "/status"
-        ? "Service status"
-        : "Page not found";
+      : path === "/history"
+        ? "History"
+        : path === "/status"
+          ? "Service status"
+          : "Page not found";
   const previousPath = useRef(path);
 
   useEffect(() => {
@@ -182,6 +202,16 @@ export function App() {
             Overview
           </InternalLink>
           <InternalLink
+            to="/history"
+            className="nav-link"
+            current={path === "/history"}
+          >
+            <span className="nav-icon" aria-hidden="true">
+              ◱
+            </span>
+            History
+          </InternalLink>
+          <InternalLink
             to="/status"
             className="nav-link"
             current={path === "/status"}
@@ -207,6 +237,8 @@ export function App() {
         <main id="main-content" className="content">
           {path === "/" ? (
             <Overview />
+          ) : path === "/history" ? (
+            <HistoryPage />
           ) : path === "/status" ? (
             <ServiceStatus />
           ) : (

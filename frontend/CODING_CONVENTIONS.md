@@ -1,7 +1,8 @@
 # Frontend Coding Conventions
 
 Development rules for dashboards, telemetry history, and operator workflows.
-The current React/TypeScript implementation displays local service status. See
+The current React/TypeScript implementation displays service status, equipment
+readings, and one-device temperature history. See
 [README.md](README.md) for its toolchain and executable checks; the broader
 monitoring workflows below remain implementation expectations.
 

@@ -10,7 +10,7 @@ latest stored temperature reading for each device:
       "device_id": "device-demo-001",
       "name": "Demo device",
       "latest_reading": {
-        "value": 23.75,
+        "value": "23.75",
         "unit": "celsius",
         "measured_at": "2026-09-26T02:30:00Z",
         "clock_quality": "synchronised"
@@ -31,7 +31,9 @@ deterministic tie-breaker. `measured_at` remains the device's measurement time;
 it is nullable and must not be replaced by backend receipt time. Clients can
 show measurement age only when that timestamp exists and `clock_quality` is
 `synchronised`. A missing `latest_reading` means no valid reading is recorded;
-it is not a zero or a healthy status.
+it is not a zero or a healthy status. Values are JSON decimal strings to
+preserve the stored numeric representation; clients must validate them before
+display or plotting.
 
 Database failures return HTTP 503 with a machine-readable
 `device_status_unavailable` reason. The endpoint returns all registered devices,

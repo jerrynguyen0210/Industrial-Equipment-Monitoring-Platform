@@ -408,6 +408,147 @@ h2 {
   margin: 0.9rem 0 0;
 }
 
+.history-panel {
+  max-width: 79rem;
+}
+
+.history-controls {
+  display: grid;
+  grid-template-columns: minmax(12rem, 2fr) repeat(2, minmax(10rem, 1fr)) auto;
+  align-items: end;
+  gap: 0.8rem;
+}
+
+.history-controls label {
+  display: grid;
+  gap: 0.3rem;
+  color: #40576b;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.history-controls select {
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #bdccd8;
+  border-radius: 0.45rem;
+  background: white;
+  color: #20384d;
+  font: inherit;
+  font-weight: 500;
+}
+
+.history-controls .refresh-button {
+  min-height: 2.5rem;
+}
+
+.history-timezone,
+.history-unit,
+.history-notice {
+  margin: 1rem 0 0.5rem;
+  color: #52697b;
+  font-size: 0.85rem;
+}
+
+.history-unit {
+  font-weight: 700;
+}
+
+.history-notice {
+  padding: 0.7rem 0.9rem;
+  border-radius: 0.45rem;
+  background: #fff6e8;
+  color: #735527;
+}
+
+.history-chart-wrap {
+  min-width: 0;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #e1e8ef;
+  border-radius: 0.65rem;
+  background: #fbfcfd;
+}
+
+.history-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.chart-axis {
+  stroke: #aabccb;
+  stroke-width: 1;
+}
+
+.chart-line {
+  fill: none;
+  stroke: #14758c;
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.chart-point {
+  fill: #14758c;
+  stroke: white;
+  stroke-width: 1.2;
+}
+
+.chart-label {
+  fill: #63788a;
+  font-size: 12px;
+}
+
+.history-axis-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0 0.5rem 0.2rem 3.1rem;
+  color: #63788a;
+  font-size: 0.72rem;
+}
+
+.history-axis-labels span:last-child {
+  text-align: right;
+}
+
+.history-table {
+  margin-top: 1rem;
+  color: #40576b;
+  font-size: 0.85rem;
+}
+
+.history-table summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.history-table-scroll {
+  max-height: 24rem;
+  margin-top: 0.6rem;
+  overflow: auto;
+  border: 1px solid #e1e8ef;
+  border-radius: 0.45rem;
+}
+
+.history-table table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.history-table th,
+.history-table td {
+  padding: 0.45rem 0.7rem;
+  border-bottom: 1px solid #e9eef2;
+}
+
+.history-table th {
+  background: #f5f8fa;
+}
+
 .panel {
   min-width: 0;
   padding: clamp(1.3rem, 2.5vw, 1.8rem);
@@ -567,6 +708,10 @@ h2 {
 }
 
 @media (max-width: 850px) {
+  .history-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .app-shell {
     display: block;
   }
@@ -597,6 +742,14 @@ h2 {
 }
 
 @media (max-width: 650px) {
+  .history-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .history-axis-labels {
+    font-size: 0.65rem;
+  }
+
   .dashboard-grid {
     grid-template-columns: 1fr;
   }
