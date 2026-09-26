@@ -232,6 +232,11 @@ def main() -> None:
             require(
                 "Industrial Equipment Monitoring Platform" in page, "Wrong frontend"
             )
+            status, page = request(url("frontend", 8080, "/status"))
+            require(
+                status == 200 and "Industrial Equipment Monitoring Platform" in page,
+                "Frontend status route failed to serve the app",
+            )
             wait_ready(ready)
             wait_ready(backend_ready)
             status, body = request(live)

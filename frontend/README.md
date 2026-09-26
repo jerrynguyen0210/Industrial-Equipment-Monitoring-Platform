@@ -1,6 +1,6 @@
 # Frontend
 
-Equipment dashboards, telemetry views, and user-facing monitoring workflows.
+The React/TypeScript dashboard shell for the local monitoring platform.
 
 ## Development guide
 
@@ -9,27 +9,42 @@ API integration, telemetry presentation, accessibility, security, and testing.
 
 ## Setup and validation
 
-The bootstrap uses React, strict TypeScript, Vite, Node.js 24.15+ (below 25), and
-npm with a committed lockfile. It displays backend/database readiness, loading, and outage
-states. Equipment data, history, and alerts are not implemented yet.
+The app uses React, strict TypeScript, Vite, Node.js 24.15+ (below 25), and npm
+with a committed lockfile. The Overview route (`/`) and Service Status route
+(`/status`) share the dashboard layout. Service Status displays backend/database
+readiness, including loading and outage states. The API client reads
+`/api/health/ready` by default; equipment data, history, and alerts are not
+implemented yet.
 
-From the repository root, `docker compose up` builds the frontend and serves it at
-http://localhost:8080 through an unprivileged Nginx container. Browser requests to
-`/api/` are forwarded to the backend over the Compose network. The browser never
-needs container DNS names, CORS configuration, or database credentials. Nginx
-re-resolves the backend name so container replacement can recover automatically.
+From the repository root, provision local MQTT credentials once, then build and
+start Compose:
 
-For frontend development, start the backend using Compose, then in `frontend/`:
+```powershell
+python infra/mosquitto/provision.py
+docker compose up -d --build --wait
+```
 
-```sh
+Open http://localhost:8080. An unprivileged Nginx container serves the frontend;
+browser requests to `/api/` are forwarded to the backend over the Compose network.
+The browser never needs container DNS names, CORS configuration, or database
+credentials. Nginx re-resolves the backend name so container replacement can
+recover automatically.
+The provisioner refuses to replace an existing credential directory; on later
+starts, run only the Compose command. The isolated `python tests/compose_smoke.py`
+test provisions its own MQTT credentials.
+
+For frontend development, start the backend from the repository root with
+`docker compose up -d --build --wait backend`. Then in `frontend/`:
+
+```powershell
 npm ci
-cp .env.example .env
 npm run dev
 ```
 
 Open the URL printed by Vite (normally http://localhost:5173). Vite proxies `/api`
 to `http://127.0.0.1:8000`; set `API_PROXY_TARGET` in `frontend/.env` if you override
-`BACKEND_PORT`. Restart Vite after changing the file.
+`BACKEND_PORT`. Copy `.env.example` to `.env` only when changing defaults, and
+restart Vite after changing the file.
 
 `VITE_API_BASE_URL` defaults to `/api`; it includes the API prefix, and a trailing
 slash is optional. For an absolute URL, use a browser-reachable address with the
@@ -43,7 +58,7 @@ variable on an already-built Nginx container cannot change the bundle. All
 `VITE_*` values are public: never put database passwords or gateway credentials
 there. See the [configuration guide](../docs/configuration.md).
 
-```sh
+```powershell
 npm run check
 npm test
 npm run build
@@ -57,10 +72,10 @@ loading, readiness validation, outages, automatic recovery, request timeouts,
 unmount cleanup, and StrictMode polling. They need no running backend or Docker.
 
 `build` produces `dist/`; the Docker build copies that output into Nginx.
-`npm run format` applies formatting. Container
-health checks `/healthz`, independently of backend availability; the status page
-polls backend readiness every five seconds after the preceding request completes,
-times out failed requests, and recovers automatically.
+`npm run format` applies formatting. Container health checks `/healthz`,
+independently of backend availability; the status view polls backend readiness
+every five seconds after the preceding request completes, times out failed
+requests, and recovers automatically.
 
 The [CI workflow](../.github/workflows/local-platform.yml) runs these checks on
 every push and pull request. See the [CI guide](../docs/ci.md) for dependency

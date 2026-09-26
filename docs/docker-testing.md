@@ -83,8 +83,9 @@ docker compose exec -T postgres psql -U iemp -d iemp -c "SELECT s.site_id, g.gat
 
 Expect health `status=ok`, readiness `status=ready` and `database=ok`, and one row:
 `site-demo-001` -> `gateway-demo-001` -> `device-demo-001`, with all three enabled
-values `t`. Open [the dashboard](http://localhost:8080) to see backend health.
-The dashboard currently shows health, not a registry management screen.
+values `t`. Open [Overview](http://localhost:8080) and
+[Service Status](http://localhost:8080/status) to see backend and database
+readiness. The dashboard does not yet have a registry management screen.
 
 ## 4. Verify rollback, duplicates, and ownership inside Docker
 

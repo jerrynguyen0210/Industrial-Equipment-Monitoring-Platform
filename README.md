@@ -6,11 +6,13 @@ gateway and backend, and presenting equipment status in a monitoring interface.
 ## Project status
 
 The local platform runs PostgreSQL, Mosquitto, a FastAPI health and telemetry API,
-and a React/TypeScript service-status page with Docker Compose. The
-[API-mode simulator](simulator/README.md) exercises authenticated batch ingestion,
-per-item outcomes, persistence and retries, with deterministic temperature profiles,
-seeded noise, sampling intervals and simulated reboots. Equipment dashboards, the native
-gateway, and firmware remain separate implementation workstreams.
+and a React/TypeScript dashboard shell with Docker Compose. The dashboard has
+Overview (`/`) and Service Status (`/status`) routes and displays backend and
+database readiness. The [API-mode simulator](simulator/README.md) exercises
+authenticated batch ingestion, per-item outcomes, persistence and retries, with
+deterministic temperature profiles, seeded noise, sampling intervals and simulated
+reboots. Equipment-specific views, the native gateway, and firmware remain
+separate implementation workstreams.
 
 ## Repository structure
 
@@ -39,21 +41,29 @@ not stop Mosquitto. See the [architecture references](docs/README.md).
 
 From the repository root:
 
-```sh
-docker compose up
+```powershell
+python infra/mosquitto/provision.py
+docker compose up -d --build --wait
 ```
 
-Open **http://localhost:8080**. The page reports whether the backend can query
-PostgreSQL. First startup downloads images and builds both applications; no
-manual database initialization or `.env` file is required.
+Open **http://localhost:8080** for Overview or
+**http://localhost:8080/status** for Service Status. The status view reports
+whether the backend can query PostgreSQL through `/api/health/ready`.
+The provisioner creates ignored, local MQTT credentials and refuses to replace
+an existing credential directory. Run it only once for a persistent stack;
+later starts need only the Compose command. First startup downloads images and
+builds both applications. No `.env` file is required, and the readiness check
+does not require a database migration. Run migrations explicitly before using
+registry or telemetry persistence; see the [Docker test guide](docs/docker-testing.md).
 
 ### Prerequisites
 
 Docker Engine with Docker Compose v2.24+ (including newer versions), or Docker
 Desktop running Linux containers. The Docker daemon must be running. Allow about
 2 GB of memory for these services, plus image-build overhead, and free host ports
-8080, 8000, and 1883. Native Python/Node toolchains are only needed when working
-outside the application containers.
+8080, 8000, and 1883. Host Python is needed for the one-time MQTT credential
+provisioner; the isolated smoke test requires Python 3.13+. Node.js is needed
+only for native frontend development.
 
 ### Local development
 
@@ -74,11 +84,11 @@ explains which files are loaded, local addresses, and credential placeholders.
 | MQTT | `127.0.0.1:1883` |
 | PostgreSQL | Internal only; use `docker compose exec postgres ...`. |
 
-```sh
+```powershell
 docker compose up -d --wait  # Start in the background and wait for health checks.
 docker compose ps
 docker compose logs -f
-docker compose up --build   # Rebuild after application changes.
+docker compose up -d --build --wait  # Rebuild after application changes.
 docker compose down         # Remove containers; retain named data volumes.
 ```
 
@@ -89,13 +99,14 @@ storage, independent service lifecycles, and troubleshooting.
 
 ### Testing
 
-```sh
+```powershell
 docker compose config --quiet
 python tests/compose_smoke.py
 ```
 
 The smoke test requires Python 3.13+ and Docker. It creates a separate temporary
-Compose project, exercises startup, API routing, MQTT, outages, and persistence,
+Compose project, provisions its own MQTT credentials, exercises startup, API
+routing, MQTT, outages, and persistence,
 then removes only its own test resources. See [tests/README.md](tests/README.md)
 and the workstream READMEs for unit, formatting, and build checks. The
 [local platform workflow](.github/workflows/local-platform.yml) runs these checks

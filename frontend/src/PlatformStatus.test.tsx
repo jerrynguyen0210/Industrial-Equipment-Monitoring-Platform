@@ -30,9 +30,27 @@ afterEach(() => {
   vi.clearAllTimers();
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 describe("platform readiness", () => {
+  it("uses the configured API prefix without trailing slashes", async () => {
+    vi.stubEnv("VITE_API_BASE_URL", "https://monitor.example/api///");
+    vi.resetModules();
+    const { getReadiness } = await import("./api");
+    fetchMock.mockResolvedValue(response(readyBody));
+
+    await getReadiness(new AbortController().signal);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://monitor.example/api/health/ready",
+      {
+        signal: expect.any(AbortSignal),
+        cache: "no-store",
+      },
+    );
+  });
+
   it("shows loading while the backend request is pending", () => {
     fetchMock.mockReturnValue(new Promise(() => {}));
     render(<PlatformStatus />);
