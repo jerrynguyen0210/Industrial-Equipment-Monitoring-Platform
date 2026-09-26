@@ -10,6 +10,7 @@ import {
 import { PlatformStatus } from "./PlatformStatus";
 import { EquipmentStatus } from "./EquipmentStatus";
 import { History } from "./History";
+import { AlertEpisodes } from "./AlertEpisodes";
 
 const navigationEvent = "iemp:navigate";
 
@@ -93,6 +94,9 @@ function Overview() {
             View service details <span aria-hidden="true">→</span>
           </InternalLink>
         </section>
+      </div>
+      <div className="alert-demo-section">
+        <AlertEpisodes />
       </div>
     </>
   );

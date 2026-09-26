@@ -242,6 +242,141 @@ h2 {
   gap: 1.2rem;
 }
 
+.alert-demo-section {
+  margin-top: 1.2rem;
+}
+
+.alert-demo-panel .section-heading {
+  align-items: center;
+}
+
+.demo-data-badge {
+  flex: none;
+  padding: 0.25rem 0.65rem;
+  border: 1px solid #e5c982;
+  border-radius: 999px;
+  background: #fff8e7;
+  color: #76510d;
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.alert-demo-description {
+  max-width: 48rem;
+  margin-bottom: 1rem;
+  color: #5a6c7c;
+  font-size: 0.9rem;
+}
+
+.alert-episode-card {
+  padding: 1.1rem;
+  border: 1px solid #ead6a8;
+  border-left: 4px solid #d39119;
+  border-radius: 0.7rem;
+  background: #fffdf8;
+}
+
+.alert-episode-resolved {
+  border-color: #c9dfd1;
+  border-left-color: #36825b;
+  background: #f8fcf9;
+}
+
+.alert-episode-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.alert-episode-heading h3 {
+  margin: 0;
+  color: #20384d;
+  font-size: 1rem;
+}
+
+.alert-episode-heading .device-id {
+  margin: 0.15rem 0 0;
+}
+
+.alert-state {
+  flex: none;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.alert-state-active {
+  background: #fff0cf;
+  color: #774d00;
+}
+
+.alert-state-resolved {
+  background: #e2f2e8;
+  color: #24603e;
+}
+
+.alert-episode-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem 1.5rem;
+  margin: 1rem 0;
+}
+
+.alert-episode-details div {
+  min-width: 0;
+}
+
+.alert-episode-details dt {
+  color: #66798a;
+  font-size: 0.73rem;
+  font-weight: 700;
+}
+
+.alert-episode-details dd {
+  margin: 0.15rem 0 0;
+  color: #263d52;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.alert-demo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.recovery-button {
+  padding: 0.5rem 0.8rem;
+  border: 1px solid #b5d6c1;
+  border-radius: 0.45rem;
+  background: #edf8f1;
+  color: #24603e;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.recovery-button:hover {
+  background: #e1f1e7;
+}
+
+.alert-recovery-note {
+  color: #24603e;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.alert-demo-feedback {
+  margin: 0.8rem 0 0;
+  color: #66798a;
+  font-size: 0.75rem;
+}
+
 .status-content {
   display: grid;
   gap: 1.2rem;
@@ -751,6 +886,10 @@ h2 {
   }
 
   .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .alert-episode-details {
     grid-template-columns: 1fr;
   }
 
