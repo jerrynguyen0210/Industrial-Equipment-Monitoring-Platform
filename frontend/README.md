@@ -11,10 +11,11 @@ API integration, telemetry presentation, accessibility, security, and testing.
 
 The app uses React, strict TypeScript, Vite, Node.js 24.15+ (below 25), and npm
 with a committed lockfile. The Overview route (`/`) and Service Status route
-(`/status`) share the dashboard layout. Service Status displays backend/database
-readiness, including loading and outage states. The API client reads
-`/api/health/ready` by default; equipment data, history, and alerts are not
-implemented yet.
+(`/status`) share the dashboard layout. Overview fetches registered devices and
+their latest stored temperatures from `GET /api/v1/devices`, with explicit
+loading, empty, and error states. Service Status displays backend/database
+readiness. History and alert evaluation are not implemented; active alert counts
+are shown as unavailable.
 
 From the repository root, provision local MQTT credentials once, then build and
 start Compose:

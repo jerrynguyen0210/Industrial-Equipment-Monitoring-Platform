@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { PlatformStatus } from "./PlatformStatus";
+import { EquipmentStatus } from "./EquipmentStatus";
 
 const navigationEvent = "iemp:navigate";
 
@@ -77,31 +78,19 @@ function Overview() {
           Overview
         </h1>
         <p className="page-description">
-          Your starting point for equipment monitoring. Check the platform
-          connection while the monitoring views are being built.
+          Current recorded temperature readings and their measurement times.
         </p>
       </div>
 
       <div className="dashboard-grid">
         <div className="panel status-panel">
+          <EquipmentStatus />
+        </div>
+        <section className="panel status-panel" aria-label="Service status">
           <PlatformStatus />
           <InternalLink to="/status" className="text-link">
             View service details <span aria-hidden="true">→</span>
           </InternalLink>
-        </div>
-        <section
-          className="panel preview-panel"
-          aria-labelledby="equipment-heading"
-        >
-          <span className="preview-icon" aria-hidden="true">
-            ◫
-          </span>
-          <p className="eyebrow">Coming next</p>
-          <h2 id="equipment-heading">Equipment monitoring</h2>
-          <p>
-            Equipment readings and alerts will appear here when those dashboard
-            features are available. No device data is shown in this build.
-          </p>
         </section>
       </div>
     </>

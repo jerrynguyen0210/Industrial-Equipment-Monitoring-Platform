@@ -43,8 +43,8 @@ export function PlatformStatus() {
           "Backend or database is unavailable. Retrying automatically…"}
       </p>
       <p>
-        This checks the local platform connection. Equipment monitoring,
-        telemetry ingestion, and alerts are not implemented yet.
+        This checks the local platform connection. It does not certify device
+        connectivity, reading freshness, or alert state.
       </p>
     </section>
   );

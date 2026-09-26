@@ -248,6 +248,166 @@ h2 {
   max-width: 48rem;
 }
 
+.equipment-panel {
+  min-width: 0;
+}
+
+.section-heading,
+.equipment-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.section-heading {
+  margin-bottom: 1.25rem;
+}
+
+.section-heading .eyebrow {
+  margin-bottom: 0.3rem;
+}
+
+.section-heading h2 {
+  margin-bottom: 0;
+}
+
+.refresh-button {
+  flex: none;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid #bdd6dc;
+  border-radius: 0.45rem;
+  background: #f5fafb;
+  color: #145d73;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.refresh-button:hover:not(:disabled) {
+  background: #e8f3f5;
+}
+
+.refresh-button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.equipment-list {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.equipment-card {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid #e2eaf0;
+  border-radius: 0.7rem;
+  background: #fbfcfd;
+}
+
+.equipment-card h3 {
+  margin: 0;
+  color: #20384d;
+  font-size: 0.98rem;
+}
+
+.device-id,
+.reading-time,
+.alert-count,
+.dashboard-refresh-time {
+  color: #66798a;
+  font-size: 0.76rem;
+}
+
+.device-id {
+  margin: 0.15rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.data-indicator {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.data-indicator > span {
+  width: 0.48rem;
+  height: 0.48rem;
+  border-radius: 50%;
+  background: #8d9baa;
+}
+
+.data-indicator.available {
+  color: #176b4a;
+}
+
+.data-indicator.available > span {
+  background: #239763;
+}
+
+.data-indicator.missing {
+  color: #735c36;
+}
+
+.reading-value {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  margin: 0.9rem 0 0.2rem;
+  color: #172f43;
+}
+
+.reading-value strong {
+  font-size: 1.8rem;
+  line-height: 1.15;
+  letter-spacing: -0.04em;
+}
+
+.reading-value span {
+  color: #52697b;
+  font-size: 0.83rem;
+  font-weight: 650;
+}
+
+.reading-value .reading-unavailable {
+  color: #66798a;
+  font-size: 1.1rem;
+  letter-spacing: 0;
+}
+
+.reading-time,
+.alert-count {
+  margin: 0.35rem 0 0;
+}
+
+.alert-count {
+  color: #66798a;
+}
+
+.equipment-message,
+.equipment-error {
+  margin: 0;
+  padding: 1rem;
+  border-radius: 0.6rem;
+  background: #f6f9fb;
+  color: #52697b;
+  font-size: 0.88rem;
+}
+
+.equipment-error {
+  background: #fff7f2;
+  color: #944c2e;
+}
+
+.dashboard-refresh-time {
+  margin: 0.9rem 0 0;
+}
+
 .panel {
   min-width: 0;
   padding: clamp(1.3rem, 2.5vw, 1.8rem);

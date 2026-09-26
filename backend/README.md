@@ -21,6 +21,7 @@ runs as UID/GID 10001 and has no application volume or host-source mount.
 | Endpoint | Meaning |
 | --- | --- |
 | `POST /api/v1/telemetry/batches` | Bearer-authenticated batch ingestion; ordered per-item outcomes after commit. |
+| `GET /api/v1/devices` | Registered devices with each device's latest stored reading; HTTP 503 if the database is unavailable. |
 | `GET /health` | HTTP 200 with `{"status":"ok"}` while the API can serve requests. No dependency check. |
 | `GET /ready` | HTTP 200 with `{"status":"ready","database":"ok"}` after an authenticated `SELECT 1`; HTTP 503 with `{"status":"unavailable","database":"unavailable"}` on database failure. |
 

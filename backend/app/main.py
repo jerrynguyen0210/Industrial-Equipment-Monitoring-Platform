@@ -14,6 +14,7 @@ from sqlalchemy import Engine
 
 from app.config import database_conninfo
 from app.database import create_database_engine
+from app.device_api import router as device_router
 from app.gateway_auth import load_gateway_credentials
 from app.telemetry_api import router as telemetry_router
 from app.telemetry_openapi import build_telemetry_openapi
@@ -96,6 +97,7 @@ def create_app(
         return Readiness(status="ready", database="ok")
 
     application.include_router(telemetry_router)
+    application.include_router(device_router)
 
     def openapi() -> dict:
         if application.openapi_schema is None:
