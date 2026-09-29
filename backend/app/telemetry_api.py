@@ -28,7 +28,7 @@ async def ingest_telemetry(
     batch = await read_telemetry_batch(request)
     batch_id = str(uuid4())
     try:
-        return await run_in_threadpool(
+        committed_response = await run_in_threadpool(
             ingest_batch, request.app.state.database_engine, gateway_id, batch, batch_id
         )
     except GatewayForbiddenError:
@@ -51,3 +51,4 @@ async def ingest_telemetry(
                 "batch_id": batch_id,
             },
         ) from None
+    return committed_response

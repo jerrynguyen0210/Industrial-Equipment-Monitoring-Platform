@@ -6,12 +6,12 @@ import secrets
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from decimal import Decimal
-from threading import Barrier
+from threading import Barrier, Event
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from postgres_test_case import PostgresTestCase
-from sqlalchemy import event, func, select, update
+from sqlalchemy import event, func, select, text, update
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
@@ -294,12 +294,39 @@ class IngestionTests(PostgresTestCase):
             )
         self.assertEqual(self.count(), 2)
 
+    def test_no_http_acknowledgement_until_commit_finishes(self) -> None:
+        at_commit = Event()
+        finish_commit = Event()
+
+        def pause_commit(session):
+            if not session.in_nested_transaction():
+                at_commit.set()
+                if not finish_commit.wait(timeout=10):
+                    raise TimeoutError("test did not release commit")
+
+        event.listen(Session, "before_commit", pause_commit)
+        try:
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                response_future = pool.submit(self.post, self.reading)
+                self.assertTrue(at_commit.wait(timeout=5))
+                self.assertFalse(response_future.done())
+                self.assertEqual(self.count(), 0)
+                finish_commit.set()
+                response = response_future.result(timeout=10)
+        finally:
+            finish_commit.set()
+            event.remove(Session, "before_commit", pause_commit)
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["results"][0]["outcome"], "accepted")
+        self.assertEqual(self.count(), 1)
+
     def test_failed_commit_returns_no_acceptance_and_rolls_back_whole_batch(
         self,
     ) -> None:
         def fail_commit(session):
             if not session.in_nested_transaction():
-                raise OperationalError("COMMIT", {}, Exception("secret-sentinel"))
+                session.execute(text("SELECT 1 / 0 /* secret-sentinel */"))
 
         event.listen(Session, "before_commit", fail_commit)
         try:
@@ -311,6 +338,7 @@ class IngestionTests(PostgresTestCase):
             event.remove(Session, "before_commit", fail_commit)
         self.assertEqual(response.status_code, 503)
         self.assertNotIn("results", response.json())
+        self.assertEqual(response.json()["detail"]["reason"], "ingestion_unavailable")
         self.assertNotIn("secret-sentinel", response.text + " ".join(logs.output))
         self.assertEqual(self.count(), 0)
         self.assertEqual(
@@ -355,7 +383,10 @@ class IngestionTests(PostgresTestCase):
         finally:
             event.remove(Session, "after_commit", lose_acknowledgement)
         self.assertEqual(response.status_code, 503)
+        self.assertNotIn("results", response.json())
+        self.assertEqual(response.json()["detail"]["reason"], "ingestion_unavailable")
         self.assertEqual(self.count(), 1)
         self.assertEqual(
             self.post(self.reading).json()["results"][0]["outcome"], "duplicate"
         )
+        self.assertEqual(self.count(), 1)

@@ -36,6 +36,7 @@ def ingest_batch(
     batch: ValidatedTelemetryBatch,
     batch_id: str,
 ) -> TelemetryBatchResponse:
+    """Commit all accepted rows before exposing any per-item outcome."""
     results = []
     with Session(engine) as session, session.begin():
         # Shared row locks allow concurrent ingestion while preventing registry
