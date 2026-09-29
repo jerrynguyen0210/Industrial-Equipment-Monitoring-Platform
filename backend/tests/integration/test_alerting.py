@@ -116,6 +116,39 @@ class AlertingTests(PostgresTestCase):
         self.post(self.reading(6, 31))
         self.assertEqual(len(self.episodes()), 1)
 
+    def test_alerts_endpoint_lists_persisted_episodes(self) -> None:
+        empty = self.client.get("/api/v1/alerts")
+        self.assertEqual(empty.status_code, 200, empty.text)
+        self.assertEqual(empty.json()["active_count"], 0)
+        self.assertEqual(empty.json()["episodes"], [])
+        self.assertEqual(
+            empty.json()["rule"],
+            {
+                "high_threshold": "30",
+                "recovery_threshold": "28",
+                "consecutive_readings": 3,
+                "unit": "celsius",
+            },
+        )
+
+        self.post(*(self.reading(n, 31 + n) for n in (1, 2, 3)))
+        body = self.client.get("/api/v1/alerts").json()
+        self.assertEqual(body["active_count"], 1)
+        [episode] = body["episodes"]
+        self.assertEqual(episode["device_id"], DEVICE_ID)
+        self.assertEqual(episode["state"], "active")
+        self.assertEqual(episode["opening_value"], "34")
+        self.assertIsNone(episode["resolved_at"])
+        self.assertIsNone(episode["resolving_value"])
+
+        self.post(*(self.reading(n, 20 + n) for n in (4, 5, 6)))
+        body = self.client.get("/api/v1/alerts").json()
+        self.assertEqual(body["active_count"], 0)
+        [episode] = body["episodes"]
+        self.assertEqual(episode["state"], "resolved")
+        self.assertEqual(episode["resolving_value"], "26")
+        self.assertIsNotNone(episode["resolved_at"])
+
     def test_concurrent_replay_of_opening_event_creates_one_episode(self) -> None:
         self.post(self.reading(1, 31), self.reading(2, 31))
         third = self.reading(3, 31)

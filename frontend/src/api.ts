@@ -44,6 +44,30 @@ export type DeviceHistory = {
   points: HistoryPoint[];
 };
 
+export type AlertRule = {
+  high_threshold: number | string;
+  recovery_threshold: number | string;
+  consecutive_readings: number;
+  unit: string;
+};
+
+export type AlertEpisode = {
+  id: number;
+  device_id: string;
+  device_name: string;
+  state: "active" | "resolved";
+  opened_at: string;
+  opening_value: number | string;
+  resolved_at: string | null;
+  resolving_value: number | string | null;
+};
+
+export type AlertEpisodeList = {
+  rule: AlertRule;
+  active_count: number;
+  episodes: AlertEpisode[];
+};
+
 function isReadinessResponse(value: unknown): value is ReadinessResponse {
   return (
     typeof value === "object" &&
@@ -197,6 +221,75 @@ function isDeviceHistory(value: unknown): value is DeviceHistory {
     Array.isArray(value.points) &&
     value.points.every(isHistoryPoint)
   );
+}
+
+function isAlertRule(value: unknown): value is AlertRule {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "high_threshold" in value &&
+    isTemperatureValue(value.high_threshold) &&
+    "recovery_threshold" in value &&
+    isTemperatureValue(value.recovery_threshold) &&
+    "consecutive_readings" in value &&
+    typeof value.consecutive_readings === "number" &&
+    "unit" in value &&
+    typeof value.unit === "string"
+  );
+}
+
+function isAlertEpisode(value: unknown): value is AlertEpisode {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    typeof value.id === "number" &&
+    "device_id" in value &&
+    typeof value.device_id === "string" &&
+    "device_name" in value &&
+    typeof value.device_name === "string" &&
+    "state" in value &&
+    ["active", "resolved"].includes(String(value.state)) &&
+    "opened_at" in value &&
+    isTimestamp(value.opened_at) &&
+    "opening_value" in value &&
+    isTemperatureValue(value.opening_value) &&
+    "resolved_at" in value &&
+    (value.resolved_at === null || isTimestamp(value.resolved_at)) &&
+    "resolving_value" in value &&
+    (value.resolving_value === null ||
+      isTemperatureValue(value.resolving_value))
+  );
+}
+
+export async function getAlerts(
+  signal: AbortSignal,
+): Promise<AlertEpisodeList> {
+  const response = await fetch(`${apiBaseUrl}/v1/alerts`, {
+    signal,
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Alert request failed with HTTP ${response.status}`);
+  }
+
+  const body: unknown = await response.json();
+  if (
+    typeof body !== "object" ||
+    body === null ||
+    !("rule" in body) ||
+    !isAlertRule(body.rule) ||
+    !("active_count" in body) ||
+    typeof body.active_count !== "number" ||
+    !("episodes" in body) ||
+    !Array.isArray(body.episodes) ||
+    !body.episodes.every(isAlertEpisode)
+  ) {
+    throw new Error("Invalid alert response");
+  }
+
+  return body as AlertEpisodeList;
 }
 
 export async function getDeviceHistory(

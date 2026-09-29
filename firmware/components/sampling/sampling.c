@@ -1,5 +1,10 @@
 #include "sampling.h"
 
+#include <ctype.h>
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -9,7 +14,7 @@
 
 static const char *TAG = "sampling";
 
-#if !CONFIG_IEMP_DEMO_SYNTHETIC_SENSOR
+#if !CONFIG_IEMP_MANUAL_SENSOR_INPUT && !CONFIG_IEMP_DEMO_SYNTHETIC_SENSOR
 static const char *status_reason(temperature_sample_status_t status) {
   switch (status) {
   case TEMPERATURE_SAMPLE_DISCONNECTED:
@@ -27,6 +32,69 @@ static const char *status_reason(temperature_sample_status_t status) {
 }
 #endif
 
+#if CONFIG_IEMP_MANUAL_SENSOR_INPUT
+static void publish_typed_temperature(const char *line) {
+  char *end = NULL;
+  const float value = strtof(line, &end);
+  while (end != NULL && *end != '\0' && isspace((unsigned char)*end)) {
+    ++end;
+  }
+  if (end == line || end == NULL || *end != '\0' || !isfinite(value) || value < -55.0f ||
+      value > 125.0f) {
+    ESP_LOGW(TAG, "sensor_input=rejected");
+    return;
+  }
+  ESP_LOGI(TAG, "sensor_state=manual temperature_c=%.2f", (double)value);
+  telemetry_submit_temperature(value);
+}
+
+static void manual_input_task(void *arg) {
+  (void)arg;
+  char line[48];
+  size_t used = 0;
+
+  ESP_LOGI(TAG, "sensor_input=ready range_c=-55..125");
+  fputs("\nEnter temperature in Celsius, then press Enter:\n> ", stdout);
+  fflush(stdout);
+  for (;;) {
+    const int ch = fgetc(stdin);
+    if (ch == EOF) {
+      clearerr(stdin);
+      vTaskDelay(pdMS_TO_TICKS(50));
+      continue;
+    }
+    if (ch == '\r' || ch == '\n') {
+      if (used == 0) {
+        continue;
+      }
+      line[used] = '\0';
+      used = 0;
+      fputc('\n', stdout);
+      fflush(stdout);
+      publish_typed_temperature(line);
+      fputs("> ", stdout);
+      fflush(stdout);
+      continue;
+    }
+    if (ch == '\b' || ch == 0x7f) {
+      if (used > 0) {
+        --used;
+        fputs("\b \b", stdout);
+        fflush(stdout);
+      }
+      continue;
+    }
+    if (ch < 32 || ch > 126 || used + 1 >= sizeof(line)) {
+      continue;
+    }
+    line[used++] = (char)ch;
+    fputc(ch, stdout);
+    fflush(stdout);
+  }
+}
+#endif
+
+#if !CONFIG_IEMP_MANUAL_SENSOR_INPUT
 static void sampling_task(void *arg) {
   (void)arg;
   const TickType_t period = pdMS_TO_TICKS(CONFIG_IEMP_SAMPLE_INTERVAL_MS);
@@ -67,9 +135,15 @@ static void sampling_task(void *arg) {
   }
 #endif
 }
+#endif
 
 esp_err_t sampling_start(void) {
-  return xTaskCreate(sampling_task, "temperature_sample", 4096, NULL, 4, NULL) == pdPASS
-             ? ESP_OK
-             : ESP_ERR_NO_MEM;
+#if CONFIG_IEMP_MANUAL_SENSOR_INPUT
+  const BaseType_t created =
+      xTaskCreate(manual_input_task, "sensor_input", 4096, NULL, 4, NULL);
+#else
+  const BaseType_t created =
+      xTaskCreate(sampling_task, "temperature_sample", 4096, NULL, 4, NULL);
+#endif
+  return created == pdPASS ? ESP_OK : ESP_ERR_NO_MEM;
 }

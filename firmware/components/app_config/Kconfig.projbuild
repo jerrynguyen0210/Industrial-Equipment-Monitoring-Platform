@@ -46,8 +46,17 @@ menu "Industrial Equipment Monitoring firmware"
             Connect the externally powered DS18B20 DQ pin here, with a 4.7 kOhm
             pull-up from DQ to 3.3 V. GPIO 4 is the ESP32-DevKitC default.
 
+    config IEMP_MANUAL_SENSOR_INPUT
+        bool "Type a temperature on the USB serial console"
+        default n
+        help
+            Read one Celsius value per line from the serial console and publish
+            it. Use this when the DS18B20 is not connected. Accepted values are
+            from -55 to 125.
+
     config IEMP_DEMO_SYNTHETIC_SENSOR
         bool "Demo-only synthetic temperature (no DS18B20 required)"
+        depends on !IEMP_MANUAL_SENSOR_INPUT
         default n
         help
             Publishes an invented constant value using the frozen valid-reading

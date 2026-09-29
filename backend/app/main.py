@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import Engine
 
+from app.alert_api import router as alert_router
 from app.config import database_conninfo
 from app.database import create_database_engine
 from app.device_api import router as device_router
@@ -100,6 +101,7 @@ def create_app(
     application.include_router(telemetry_router)
     application.include_router(device_router)
     application.include_router(history_router)
+    application.include_router(alert_router)
 
     def openapi() -> dict:
         if application.openapi_schema is None:
