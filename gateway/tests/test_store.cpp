@@ -1,4 +1,5 @@
 #include "gateway/forwarder.hpp"
+#include "gateway/http/client.hpp"
 #include "gateway/sqlite/store.hpp"
 
 #include <sqlite3.h>
@@ -72,6 +73,97 @@ private:
   sqlite3 *db_ = nullptr;
 };
 
+class FakeHttpClient : public gateway::http::Client {
+public:
+  gateway::http::Response response{200, ""};
+  bool fail = false;
+  std::string posted;
+
+  gateway::http::Response post_batch(std::string_view body) override {
+    posted = std::string(body);
+    if (fail) {
+      throw std::runtime_error("simulated connection failure");
+    }
+    return response;
+  }
+  void stop() override {}
+};
+
+gateway::telemetry::Event delivery_event(int sequence) {
+  const auto number = std::to_string(sequence);
+  return {"device-1", "boot-1", sequence,
+          "{\"schema_version\":1,\"device_id\":\"device-1\",\"boot_id\":\"boot-1\","
+          "\"sequence_number\":" +
+              number +
+              ",\"measured_at\":null,\"device_uptime_ms\":1,\"metric\":\"temperature\","
+              "\"value\":31.4000000000000000000000001,\"unit\":\"celsius\","
+              "\"quality\":{\"reading\":\"valid\",\"clock\":\"unsynchronised\"}}",
+          "2026-01-01T00:00:00.000Z"};
+}
+
+void test_delivery_outcomes(const std::filesystem::path &path) {
+  gateway::sqlite::Store store(path);
+  gateway::Forwarder forwarder(store);
+  FakeHttpClient client;
+  for (int sequence = 1; sequence <= 3; ++sequence) {
+    expect(store.insert(delivery_event(sequence)) == gateway::sqlite::Store::InsertResult::inserted,
+           "delivery test event must insert");
+  }
+  client.response.body = "{\"batch_id\":\"batch-1\",\"results\":["
+                         "{\"device_id\":\"device-1\",\"boot_id\":\"boot-1\",\"sequence_number\":1,"
+                         "\"outcome\":\"accepted\"},"
+                         "{\"device_id\":\"device-1\",\"boot_id\":\"boot-1\",\"sequence_number\":2,"
+                         "\"outcome\":\"duplicate\"},"
+                         "{\"device_id\":\"device-1\",\"boot_id\":\"boot-1\",\"sequence_number\":3,"
+                         "\"outcome\":\"rejected\",\"reason\":\"unknown_device\"}]}";
+  expect(forwarder.drain_once(client) == gateway::Forwarder::RunResult::delivered,
+         "mixed response must apply");
+  expect(client.posted.find("31.4000000000000000000000001") != std::string::npos,
+         "forwarding must preserve precise JSON number text");
+  expect(client.posted.find("\"gateway_received_at\":\"2026-01-01T00:00:00.000Z\"") !=
+             std::string::npos,
+         "forwarding must include original gateway receipt time");
+  expect(client.posted.find("\"schema_version\":1,\"device_id\"") == std::string::npos,
+         "event-level schema version must be removed");
+  {
+    RawDatabase database(path);
+    expect(database.scalar("SELECT COUNT(*) FROM intake_events") == 0,
+           "confirmed and rejected rows must leave the queue");
+    expect(database.scalar("SELECT COUNT(*) FROM quarantined_events WHERE "
+                           "sequence_number=3 AND reason='unknown_device'") == 1,
+           "permanent rejection must enter quarantine");
+  }
+  expect(store.insert(delivery_event(3)) == gateway::sqlite::Store::InsertResult::duplicate,
+         "quarantined retransmission must not re-enter queue");
+
+  expect(store.insert(delivery_event(4)) == gateway::sqlite::Store::InsertResult::inserted,
+         "retry test event must insert");
+  client.fail = true;
+  expect(forwarder.drain_once(client) == gateway::Forwarder::RunResult::retry,
+         "connection failure must request retry");
+  expect(store.pending_count() == 1 && forwarder.load_pending()[0].attempt_count == 1,
+         "connection failure must retain the event and its attempt count");
+  client.fail = false;
+  client.response.body =
+      "{\"batch_id\":\"batch-2\",\"results\":[{\"device_id\":\"device-1\","
+      "\"boot_id\":\"boot-1\",\"sequence_number\":999,\"outcome\":\"accepted\"}]}";
+  expect(forwarder.drain_once(client) == gateway::Forwarder::RunResult::retry,
+         "mismatched response must not delete data");
+  expect(store.pending_count() == 1 && forwarder.load_pending()[0].attempt_count == 2,
+         "mismatched response must retain the event");
+  store.close();
+  gateway::sqlite::Store reopened(path);
+  expect(reopened.pending_count() == 1 && reopened.load_pending(1)[0].attempt_count == 2,
+         "failed delivery must survive restart");
+  gateway::Forwarder recovered_forwarder(reopened);
+  client.response.body = "{\"batch_id\":\"batch-3\",\"results\":[{\"device_id\":\"device-1\","
+                         "\"boot_id\":\"boot-1\",\"sequence_number\":4,\"outcome\":\"accepted\","
+                         "\"outcome\":\"rejected\",\"reason\":\"unknown_device\"}]}";
+  expect(recovered_forwarder.drain_once(client) == gateway::Forwarder::RunResult::retry,
+         "contradictory response keys must not delete data");
+  expect(reopened.pending_count() == 1, "contradictory response must leave the event pending");
+}
+
 void test_migration_and_restart(const std::filesystem::path &path) {
   {
     RawDatabase database(path);
@@ -116,7 +208,7 @@ void test_migration_and_restart(const std::filesystem::path &path) {
       RawDatabase independent_reader(path);
       expect(independent_reader.scalar("SELECT COUNT(*) FROM intake_events") == 2,
              "insert must commit before return");
-      expect(independent_reader.scalar("PRAGMA user_version") == 1,
+      expect(independent_reader.scalar("PRAGMA user_version") == 2,
              "migration must set schema version");
     }
 
@@ -167,4 +259,5 @@ void test_migration_and_restart(const std::filesystem::path &path) {
 int main() {
   TemporaryDirectory directory;
   test_migration_and_restart(directory.path / "queue.sqlite3");
+  test_delivery_outcomes(directory.path / "delivery.sqlite3");
 }

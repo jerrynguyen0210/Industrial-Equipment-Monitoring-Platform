@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <mutex>
+#include <string>
 #include <vector>
 
 struct sqlite3;
@@ -18,6 +19,13 @@ struct QueuedEvent {
   telemetry::Event event;
   QueueState state = QueueState::pending;
   std::int64_t attempt_count = 0;
+};
+
+enum class DeliveryAction { accepted, duplicate, rejected, retry };
+
+struct DeliveryDecision {
+  DeliveryAction action;
+  std::string reason;
 };
 
 class Store {
@@ -41,6 +49,10 @@ public:
   // Atomically marks persisted rows in flight and increments their claim count.
   std::vector<QueuedEvent> claim_pending(std::size_t limit);
   bool release_claim(const QueuedEvent &claimed);
+  // Applies a fully validated response in one transaction. Rejected rows move
+  // to quarantine before deletion from the delivery queue.
+  void apply_decisions(const std::vector<QueuedEvent> &claimed,
+                       const std::vector<DeliveryDecision> &decisions);
 
 private:
   std::vector<QueuedEvent> load_pending_unlocked(std::size_t limit) const;

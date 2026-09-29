@@ -104,12 +104,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install gateway build dependency
-        run: sudo apt-get update -qq && sudo apt-get install -y libsqlite3-dev libmosquitto-dev nlohmann-json3-dev mosquitto mosquitto-clients clang-format-18
+        run: sudo apt-get update -qq && sudo apt-get install -y libsqlite3-dev libmosquitto-dev libcurl4-openssl-dev nlohmann-json3-dev mosquitto mosquitto-clients clang-format-18
       - name: Check gateway formatting
-        run: clang-format-18 --dry-run --Werror gateway/src/*.cpp gateway/src/*/*.cpp gateway/include/gateway/*.hpp gateway/include/gateway/*/*.hpp
+        run: clang-format-18 --dry-run --Werror gateway/src/*.cpp gateway/src/*/*.cpp gateway/include/gateway/*.hpp gateway/include/gateway/*/*.hpp gateway/tests/*.cpp
       - name: Configure gateway
         run: cmake -S gateway -B gateway/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON
       - name: Build gateway
         run: cmake --build gateway/build --parallel 2
-      - name: Test gateway lifecycle
+      - name: Test gateway
         run: ctest --test-dir gateway/build --output-on-failure

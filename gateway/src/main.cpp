@@ -1,5 +1,6 @@
 #include "gateway/config.hpp"
 #include "gateway/forwarder.hpp"
+#include "gateway/http/client.hpp"
 #include "gateway/intake.hpp"
 #include "gateway/log.hpp"
 #include "gateway/mqtt/client.hpp"
@@ -91,6 +92,7 @@ int main(int argc, char **argv) {
     return 3;
   }
   try {
+    gateway::http::CurlClient http_client(config.api_base_url, config.gateway_api_key);
     gateway::Forwarder forwarder(*store);
     const auto loaded_count = forwarder.load_pending().size();
     const auto pending_total = store->pending_count();
@@ -102,8 +104,9 @@ int main(int argc, char **argv) {
                                  [&](std::string_view topic, std::string_view payload,
                                      bool retained) { intake.receive(topic, payload, retained); });
     client.start();
+    forwarder.start(http_client);
     gateway::log(gateway::Level::info, "lifecycle", "ready",
-                 "gateway started; MQTT connecting; HTTP forwarding is not enabled");
+                 "gateway started; MQTT connecting; HTTP queue forwarding enabled");
 
     int received_signal = 0;
     int exit_code = 0;
@@ -128,6 +131,7 @@ int main(int argc, char **argv) {
                    received_signal == SIGTERM ? "SIGTERM received" : "SIGINT received");
     }
     client.stop();
+    forwarder.stop();
     store->close();
     gateway::log(gateway::Level::info, "lifecycle", "stopped", "SQLite closed; gateway stopped");
     return exit_code;

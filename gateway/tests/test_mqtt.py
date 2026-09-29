@@ -29,6 +29,9 @@ class MqttIntakeTests(unittest.TestCase):
         with socket.socket() as temporary_socket:
             temporary_socket.bind(("127.0.0.1", 0))
             self.port = temporary_socket.getsockname()[1]
+        with socket.socket() as temporary_socket:
+            temporary_socket.bind(("127.0.0.1", 0))
+            self.api_port = temporary_socket.getsockname()[1]
         passwords = self.directory / "passwd"
         for flags, username, password in (
             (["-b", "-c"], "gateway-test", "test-password"),
@@ -76,7 +79,7 @@ class MqttIntakeTests(unittest.TestCase):
         self.config.write_text(
             f"MQTT_HOST=127.0.0.1\nMQTT_PORT={self.port}\n"
             "MQTT_USERNAME=gateway-test\nMQTT_PASSWORD_FILE=mqtt.password\n"
-            "API_BASE_URL=http://127.0.0.1:8000/api\n"
+            f"API_BASE_URL=http://127.0.0.1:{self.api_port}/api\n"
             "GATEWAY_API_KEY=test-token-123456\nQUEUE_DB_PATH=queue.sqlite3\n"
         )
         self.start_gateway()
@@ -154,6 +157,15 @@ class MqttIntakeTests(unittest.TestCase):
                 ("device-demo-001", "mqtt-local-demo-1", sequence_number),
             ).fetchone()
 
+    def wait_pending(self, sequence_number, timeout=6):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            metadata = self.queue_metadata(sequence_number)
+            if metadata and metadata[0] == "pending":
+                return metadata
+            time.sleep(0.05)
+        self.fail(f"event {sequence_number} did not return to pending")
+
     def test_original_receipt_and_rejections(self):
         sample = Path(__file__).resolve().parents[2] / "infra/mosquitto/sample-event.json"
         valid = sample.read_text()
@@ -161,7 +173,7 @@ class MqttIntakeTests(unittest.TestCase):
         self.wait_for("message_stored")
         payload, received_at = self.row(0)
         self.assertEqual(payload, valid)
-        self.assertEqual(self.queue_metadata(0), ("pending", 0))
+        self.assertIn(self.queue_metadata(0)[0], ("pending", "in_flight"))
         self.assertRegex(received_at, r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$")
         self.assertNotIn("gateway_received_at", json.loads(payload))
 
@@ -211,7 +223,7 @@ class MqttIntakeTests(unittest.TestCase):
         self.publish(precise)
         self.wait_for("message_stored")
         self.assertEqual(self.row(1)[0], precise)
-        self.assertEqual(self.queue_metadata(1), ("pending", 0))
+        self.assertIn(self.queue_metadata(1)[0], ("pending", "in_flight"))
 
         # The stored log is emitted after SQLite commit. A hard process exit
         # must leave both rows available to the restarted gateway.
@@ -219,7 +231,7 @@ class MqttIntakeTests(unittest.TestCase):
         self.gateway_process.wait(timeout=5)
         pending_loaded = self.start_gateway()
         self.assertIn("2 of 2 pending rows", pending_loaded["message"])
-        self.assertEqual(self.queue_metadata(0), ("pending", 0))
+        self.assertGreaterEqual(self.wait_pending(0)[1], 1)
         self.publish(valid)
         self.wait_for("message_duplicate")
         self.assertEqual(self.row(0), (payload, received_at))

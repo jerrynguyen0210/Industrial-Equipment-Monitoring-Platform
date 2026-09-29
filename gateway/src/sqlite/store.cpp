@@ -94,7 +94,7 @@ void initialize_schema(sqlite3 *db) {
       throw std::runtime_error("cannot read SQLite queue schema version");
     }
     const int version = sqlite3_column_int(version_statement.get(), 0);
-    if (version < 0 || version > 1) {
+    if (version < 0 || version > 2) {
       throw std::runtime_error("unsupported SQLite queue schema version");
     }
   }
@@ -129,6 +129,12 @@ void initialize_schema(sqlite3 *db) {
   execute(db, "CREATE INDEX IF NOT EXISTS intake_events_pending_order "
               "ON intake_events(queue_state, gateway_received_at, device_id, boot_id, "
               "sequence_number)");
+  execute(db, "CREATE TABLE IF NOT EXISTS quarantined_events ("
+              "device_id TEXT NOT NULL, boot_id TEXT NOT NULL, "
+              "sequence_number INTEGER NOT NULL, mqtt_payload TEXT NOT NULL, "
+              "gateway_received_at TEXT NOT NULL, attempt_count INTEGER NOT NULL, "
+              "reason TEXT NOT NULL, quarantined_at TEXT NOT NULL, "
+              "PRIMARY KEY (device_id, boot_id, sequence_number)) WITHOUT ROWID");
   {
     Statement invalid(db, "SELECT COUNT(*) FROM intake_events WHERE queue_state IS NULL OR "
                           "queue_state NOT IN ('pending', 'in_flight') OR attempt_count IS NULL "
@@ -139,7 +145,7 @@ void initialize_schema(sqlite3 *db) {
   }
   execute(db, "UPDATE intake_events SET queue_state='pending' "
               "WHERE queue_state='in_flight'");
-  execute(db, "PRAGMA user_version=1");
+  execute(db, "PRAGMA user_version=2");
   transaction.commit();
 }
 
@@ -234,6 +240,24 @@ void Store::close() {
 Store::InsertResult Store::insert(const telemetry::Event &event) {
   const std::lock_guard<std::mutex> lock(mutex_);
   Transaction transaction(db_);
+  {
+    Statement quarantined(db_, "SELECT mqtt_payload FROM quarantined_events WHERE device_id=? "
+                               "AND boot_id=? AND sequence_number=?");
+    bind_text(db_, quarantined.get(), 1, event.device_id);
+    bind_text(db_, quarantined.get(), 2, event.boot_id);
+    if (sqlite3_bind_int64(quarantined.get(), 3, event.sequence_number) != SQLITE_OK) {
+      throw std::runtime_error("SQLite quarantine identity bind failed");
+    }
+    const int result = sqlite3_step(quarantined.get());
+    if (result == SQLITE_ROW) {
+      return column_text(quarantined.get(), 0) == event.mqtt_payload
+                 ? InsertResult::duplicate
+                 : InsertResult::identity_conflict;
+    }
+    if (result != SQLITE_DONE) {
+      throw std::runtime_error("SQLite quarantine identity lookup failed");
+    }
+  }
   {
     Statement statement(
         db_, "INSERT INTO intake_events (device_id, boot_id, sequence_number, mqtt_payload, "
@@ -363,6 +387,69 @@ bool Store::release_claim(const QueuedEvent &claimed) {
   }
   transaction.commit();
   return released;
+}
+
+void Store::apply_decisions(const std::vector<QueuedEvent> &claimed,
+                            const std::vector<DeliveryDecision> &decisions) {
+  if (claimed.size() != decisions.size() || claimed.empty() || claimed.size() > max_batch_size) {
+    throw std::invalid_argument("delivery decisions must match a nonempty claimed batch");
+  }
+  const std::lock_guard<std::mutex> lock(mutex_);
+  Transaction transaction(db_);
+  for (std::size_t index = 0; index < claimed.size(); ++index) {
+    const auto &row = claimed[index];
+    const auto &decision = decisions[index];
+    if (row.state != QueueState::in_flight || row.attempt_count <= 0) {
+      throw std::invalid_argument("delivery decision requires an in-flight claim");
+    }
+    if (decision.action != DeliveryAction::accepted &&
+        decision.action != DeliveryAction::duplicate &&
+        decision.action != DeliveryAction::rejected && decision.action != DeliveryAction::retry) {
+      throw std::invalid_argument("unknown delivery action");
+    }
+    if (decision.action == DeliveryAction::rejected) {
+      if (decision.reason.empty()) {
+        throw std::invalid_argument("rejected delivery requires a reason");
+      }
+      Statement quarantine(db_,
+                           "INSERT INTO quarantined_events "
+                           "(device_id, boot_id, sequence_number, mqtt_payload, "
+                           "gateway_received_at, attempt_count, reason, quarantined_at) "
+                           "VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))");
+      bind_text(db_, quarantine.get(), 1, row.event.device_id);
+      bind_text(db_, quarantine.get(), 2, row.event.boot_id);
+      if (sqlite3_bind_int64(quarantine.get(), 3, row.event.sequence_number) != SQLITE_OK ||
+          sqlite3_bind_int64(quarantine.get(), 6, row.attempt_count) != SQLITE_OK) {
+        throw std::runtime_error("cannot bind quarantine identity");
+      }
+      bind_text(db_, quarantine.get(), 4, row.event.mqtt_payload);
+      bind_text(db_, quarantine.get(), 5, row.event.gateway_received_at);
+      bind_text(db_, quarantine.get(), 7, decision.reason);
+      if (sqlite3_step(quarantine.get()) != SQLITE_DONE) {
+        throw std::runtime_error("cannot quarantine event: " + std::string(sqlite3_errmsg(db_)));
+      }
+    } else if (!decision.reason.empty()) {
+      throw std::invalid_argument("non-rejected delivery cannot have a reason");
+    }
+
+    const char *sql = decision.action == DeliveryAction::retry
+                          ? "UPDATE intake_events SET queue_state='pending' WHERE device_id=? "
+                            "AND boot_id=? AND sequence_number=? AND queue_state='in_flight' "
+                            "AND attempt_count=?"
+                          : "DELETE FROM intake_events WHERE device_id=? AND boot_id=? "
+                            "AND sequence_number=? AND queue_state='in_flight' AND attempt_count=?";
+    Statement update(db_, sql);
+    bind_text(db_, update.get(), 1, row.event.device_id);
+    bind_text(db_, update.get(), 2, row.event.boot_id);
+    if (sqlite3_bind_int64(update.get(), 3, row.event.sequence_number) != SQLITE_OK ||
+        sqlite3_bind_int64(update.get(), 4, row.attempt_count) != SQLITE_OK) {
+      throw std::runtime_error("cannot bind delivery claim");
+    }
+    if (sqlite3_step(update.get()) != SQLITE_DONE || sqlite3_changes(db_) != 1) {
+      throw std::runtime_error("delivery claim changed before outcome was applied");
+    }
+  }
+  transaction.commit();
 }
 
 } // namespace gateway::sqlite

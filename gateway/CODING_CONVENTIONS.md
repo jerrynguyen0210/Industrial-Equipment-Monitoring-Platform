@@ -2,7 +2,8 @@
 
 Development rules for device connectivity, durable edge buffering, protocol
 translation, and backend forwarding. The native service, MQTT intake, and durable
-local queue exist; HTTP forwarding and end-to-end event delivery remain future work.
+local queue and HTTP batch forwarding exist; deployed end-to-end verification
+and queue capacity controls remain future work.
 
 ## 1. Scope and shared rules
 
