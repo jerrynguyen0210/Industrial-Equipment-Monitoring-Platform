@@ -1,8 +1,8 @@
 # Firmware Coding Conventions
 
 Development rules for sensor acquisition, device identity, telemetry, and device
-connectivity. These are implementation expectations; no firmware implementation
-or automated checks are currently present.
+connectivity. The startup project and identity host test are in place; sensor
+sampling and telemetry remain future work.
 
 ## 1. Scope and shared rules
 

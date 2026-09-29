@@ -72,6 +72,9 @@ CMakeCache.txt
 *.obj
 *.elf
 *.hex
+firmware/sdkconfig
+firmware/sdkconfig.old
+firmware/sdkconfig.defaults.local
 
 # Infrastructure state and local variables. Commit dependency lockfiles.
 .terraform/

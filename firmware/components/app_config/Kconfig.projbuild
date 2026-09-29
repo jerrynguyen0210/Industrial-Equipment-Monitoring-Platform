@@ -1,0 +1,23 @@
+menu "Industrial Equipment Monitoring firmware"
+
+    config IEMP_DEVICE_ID
+        string "Registered device ID"
+        default ""
+        help
+            Device identity assigned in the backend registry. It must be one
+            MQTT topic level, at most 128 bytes, without /, +, or #.
+
+    config IEMP_WIFI_SSID
+        string "Wi-Fi SSID"
+        default ""
+        help
+            Set with menuconfig. The resulting local sdkconfig is ignored by Git.
+
+    config IEMP_WIFI_PASSWORD
+        string "Wi-Fi WPA2/WPA3 passphrase"
+        default ""
+        help
+            Set with menuconfig. The resulting local sdkconfig is ignored by Git.
+            Use 8 through 63 bytes. Never commit this value.
+
+endmenu

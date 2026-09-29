@@ -14,12 +14,13 @@ local copy. Do not overwrite an existing `.env` when refreshing examples.
 | [Frontend](../frontend/.env.example) | Native Vite | Shell wins, then mode-specific `.env.[mode].local` / `.env.[mode]`, then `.env.local` / `.env`, then code defaults. |
 | [Gateway](../gateway/.env.example) | Native gateway | Pass the file with `--config`; matching shell variables override file values. Paths are relative to the file. MQTT and API credentials are separate. |
 | [Simulator](../simulator/.env.example) | Deterministic generator, API sender, and MQTT device publisher | Reads exported `API_BASE_URL`, `GATEWAY_API_KEY`, and MQTT settings. CLI target flags override environment variables. Scenario options are CLI flags; no automatic `.env` loading. |
+| [Firmware](../firmware/README.md) | ESP32 startup firmware | `idf.py menuconfig` stores the device ID and Wi-Fi credentials in ignored `firmware/sdkconfig`; only the ESP32 target is committed in `sdkconfig.defaults`. Rebuild and flash after changes. |
 
 Compose does **not** automatically load service-directory `.env` files. Application
 Docker contexts use allowlists, excluding local env files and secret directories.
 Only the public `VITE_API_BASE_URL` is passed to the frontend build. PostgreSQL and
 Mosquitto settings belong to the root example and the committed broker config;
-firmware has no environment-variable loader yet.
+firmware uses ESP-IDF Kconfig rather than environment variables.
 
 ## Local addresses and defaults
 
