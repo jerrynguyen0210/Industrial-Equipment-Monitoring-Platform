@@ -1,8 +1,8 @@
 # Gateway Coding Conventions
 
 Development rules for device connectivity, durable edge buffering, protocol
-translation, and backend forwarding. These are implementation expectations;
-no gateway implementation or automated checks are currently present.
+translation, and backend forwarding. The native service foundation and lifecycle
+checks exist; protocol clients and durable event delivery remain future work.
 
 ## 1. Scope and shared rules
 

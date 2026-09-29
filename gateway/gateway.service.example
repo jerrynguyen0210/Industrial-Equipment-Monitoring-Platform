@@ -1,0 +1,19 @@
+[Unit]
+Description=Industrial Equipment Monitoring gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=iemp-gateway
+Group=iemp-gateway
+StateDirectory=iemp-gateway
+StateDirectoryMode=0700
+Environment=QUEUE_DB_PATH=/var/lib/iemp-gateway/queue.sqlite3
+ExecStart=/usr/local/bin/gateway --config /etc/iemp-gateway/gateway.env
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=20s
+
+[Install]
+WantedBy=multi-user.target

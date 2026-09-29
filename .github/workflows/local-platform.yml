@@ -98,17 +98,18 @@ jobs:
         run: python tests/compose_smoke.py
 
   gateway:
-    name: Gateway build (when implemented)
+    name: Gateway build and lifecycle tests
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Report missing gateway project
-        if: ${{ hashFiles('gateway/CMakeLists.txt') == '' }}
-        run: echo "Gateway build skipped because gateway/CMakeLists.txt is not implemented." >> "$GITHUB_STEP_SUMMARY"
+      - name: Install gateway build dependency
+        run: sudo apt-get update -qq && sudo apt-get install -y libsqlite3-dev clang-format-18
+      - name: Check gateway formatting
+        run: clang-format-18 --dry-run --Werror gateway/src/*.cpp gateway/src/sqlite/*.cpp gateway/include/gateway/*.hpp gateway/include/gateway/*/*.hpp
       - name: Configure gateway
-        if: ${{ hashFiles('gateway/CMakeLists.txt') != '' }}
         run: cmake -S gateway -B gateway/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON
       - name: Build gateway
-        if: ${{ hashFiles('gateway/CMakeLists.txt') != '' }}
         run: cmake --build gateway/build --parallel 2
+      - name: Test gateway lifecycle
+        run: ctest --test-dir gateway/build --output-on-failure

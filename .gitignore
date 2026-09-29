@@ -87,3 +87,6 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 crash.log
+
+# Native gateway local database and WAL files.
+gateway/*.sqlite3*

@@ -12,7 +12,7 @@ local copy. Do not overwrite an existing `.env` when refreshing examples.
 | [Root](../.env.example) | Compose: PostgreSQL, backend, frontend build, broker publishing/auth mount | Shell variables override root `.env`, then Compose defaults. A chosen `--env-file` replaces the default file. |
 | [Backend](../backend/.env.example) | Native Uvicorn; reference for Alembic/seed | Uvicorn explicitly loads `--env-file .env` from `backend/`; shell variables win. Alembic/seed use exported shell variables only. Nonempty `DATABASE_URL` wins over `PG*`. |
 | [Frontend](../frontend/.env.example) | Native Vite | Shell wins, then mode-specific `.env.[mode].local` / `.env.[mode]`, then `.env.local` / `.env`, then code defaults. |
-| [Gateway](../gateway/.env.example) | Planned native gateway | Template only; native runtime/env loading is not implemented. MQTT and API credentials are separate. |
+| [Gateway](../gateway/.env.example) | Native gateway | Pass the file with `--config`; matching shell variables override file values. Paths are relative to the file. MQTT and API credentials are separate. |
 | [Simulator](../simulator/.env.example) | Deterministic generator, API sender, and MQTT device publisher | Reads exported `API_BASE_URL`, `GATEWAY_API_KEY`, and MQTT settings. CLI target flags override environment variables. Scenario options are CLI flags; no automatic `.env` loading. |
 
 Compose does **not** automatically load service-directory `.env` files. Application
@@ -31,10 +31,11 @@ firmware has no environment-variable loader yet.
 | Native backend `DATABASE_URL` | `postgresql://iemp:iemp-local-only@127.0.0.1:5432/iemp` | Requires a separately provisioned host database |
 | `VITE_API_BASE_URL` | `/api` | Browser API prefix; readiness appends `/health/ready` |
 | `API_PROXY_TARGET` | `http://127.0.0.1:8000` | Native Vite development proxy target, without `/api` |
-| `MQTT_HOST`, `MQTT_PORT` | `127.0.0.1`, `1883` | Simulator MQTT broker address; gateway settings remain planned |
-| `MQTT_USERNAME`, `MQTT_PASSWORD_FILE` | Demo account and ignored local password path | Simulator MQTT device authentication; gateway settings remain planned |
+| `MQTT_HOST`, `MQTT_PORT` | `127.0.0.1`, `1883` | Simulator and native gateway broker address |
+| `MQTT_USERNAME`, `MQTT_PASSWORD_FILE` | Demo account and ignored local password path | Native gateway MQTT credentials; simulator uses device credentials |
 | `MQTT_AUTH_DIR` | `./secrets/mosquitto` | Compose read-only broker auth mount; generate it before starting Mosquitto |
 | `API_BASE_URL` | `http://127.0.0.1:8000/api` | Gateway/simulator API prefix |
+| `QUEUE_DB_PATH` | `./queue.sqlite3` in the gateway example | Persistent gateway SQLite file; relative to the gateway config file |
 | `GATEWAY_API_KEY` | `replace-with-provisioned-...-credential` | Nonfunctional placeholder; replace with a generated token matching the backend map |
 | `GATEWAY_CREDENTIALS_JSON` | Empty | Backend map of registered gateway IDs to unique bearer tokens; empty denies ingestion |
 | Root `FRONTEND_PORT`, `BACKEND_PORT`, `MQTT_PORT` | `8080`, `8000`, `1883` | Published host ports, not container ports |
