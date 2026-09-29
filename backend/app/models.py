@@ -18,6 +18,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     func,
+    text,
     true,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -145,3 +146,63 @@ Index(
     event_time(Telemetry).desc(),
     Telemetry.id.desc(),
 )
+
+
+class AlertEpisode(Base):
+    """One temperature alert from opening through recovery."""
+
+    __tablename__ = "alert_episodes"
+    __table_args__ = (
+        UniqueConstraint(
+            "opening_telemetry_id", name="uq_alert_episodes_opening_telemetry_id"
+        ),
+        UniqueConstraint(
+            "resolving_telemetry_id", name="uq_alert_episodes_resolving_telemetry_id"
+        ),
+        CheckConstraint(
+            "resolved_at IS NULL OR resolved_at >= opened_at",
+            name="resolution_after_opening",
+        ),
+        Index(
+            "uq_alert_episodes_active_device",
+            "device_id",
+            unique=True,
+            postgresql_where=text("resolved_at IS NULL"),
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    device_id: Mapped[str] = mapped_column(
+        ForeignKey("devices.device_id", ondelete="RESTRICT"), index=True
+    )
+    opened_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    resolved_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    opening_telemetry_id: Mapped[int] = mapped_column(
+        ForeignKey("telemetry.id", ondelete="RESTRICT")
+    )
+    resolving_telemetry_id: Mapped[int | None] = mapped_column(
+        ForeignKey("telemetry.id", ondelete="RESTRICT")
+    )
+
+
+class AlertState(Base):
+    """Last evaluated event and debounce counters for one device."""
+
+    __tablename__ = "alert_states"
+    __table_args__ = (
+        UniqueConstraint("active_episode_id", name="uq_alert_states_active_episode_id"),
+        CheckConstraint("high_streak BETWEEN 0 AND 2", name="high_streak_range"),
+        CheckConstraint(
+            "recovery_streak BETWEEN 0 AND 2", name="recovery_streak_range"
+        ),
+    )
+
+    device_id: Mapped[str] = mapped_column(
+        ForeignKey("devices.device_id", ondelete="RESTRICT"), primary_key=True
+    )
+    last_event_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    high_streak: Mapped[int] = mapped_column(SmallInteger, default=0)
+    recovery_streak: Mapped[int] = mapped_column(SmallInteger, default=0)
+    active_episode_id: Mapped[int | None] = mapped_column(
+        ForeignKey("alert_episodes.id", ondelete="RESTRICT")
+    )

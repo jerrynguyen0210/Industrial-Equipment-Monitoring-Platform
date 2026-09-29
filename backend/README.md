@@ -53,6 +53,8 @@ uses `GATEWAY_CREDENTIALS_JSON` to map registered gateway IDs to unique prototyp
 bearer tokens. Empty configuration denies all ingestion requests; invalid mappings
 fail startup. Credentials are loaded once at startup; restart to rotate/revoke them.
 See the [simulator quick start](../simulator/README.md) for a complete runnable slice.
+New live readings also drive the persisted
+[prototype temperature alert flow](../docs/temperature-alert-flow.md).
 Health responses do not acknowledge telemetry, and readiness checks connectivity only.
 
 ## Registry migrations and demo seed
@@ -71,10 +73,11 @@ PostgreSQL named volume. Repeat seeding preserves names, enabled states, and
 existing ownership; a conflicting parent assignment fails and rolls back the
 whole seed. Migration and seed are explicit deployment steps, never API startup
 side effects. Run migrations once before enabling a registry or telemetry consumer.
-The current head is `0003_event_time_index`; it adds an expression index for the
-dashboard's current-reading and bounded-history queries. Apply migrations before
-deploying this backend version. Downgrading to `0002_telemetry` removes that index
-without deleting telemetry rows.
+Revision `0003_event_time_index` adds an expression index for dashboard reads.
+The current head, `0004_temperature_alerts`, adds per-device alert state and
+episode tables for the [prototype temperature alert flow](../docs/temperature-alert-flow.md).
+Apply migrations before deploying this backend version. Downgrading to
+`0003_event_time_index` removes alert state and episodes while retaining telemetry.
 
 For a native database, export `DATABASE_URL` or all five `PG*` settings into the
 shell, then run from `backend/`:

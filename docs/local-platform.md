@@ -11,8 +11,9 @@ The backend exposes health and authenticated telemetry ingestion endpoints, and
 the frontend displays health. This makes container startup and browser-to-API-to-
 database connectivity reviewable. The backend also includes a
 [minimum persisted registry](registry.md), explicit Alembic migrations, and a demo
-seed command. The native gateway MQTT intake exists; HTTP forwarding and platform
-alerts remain unimplemented. No demo
+seed command. The native gateway MQTT intake exists; HTTP forwarding remains
+unimplemented. The backend has a [prototype temperature alert flow](temperature-alert-flow.md)
+for authenticated telemetry ingestion. No demo
 readings are inserted during ordinary stack startup.
 
 The backend depends on PostgreSQL only. It does not consume device MQTT; the

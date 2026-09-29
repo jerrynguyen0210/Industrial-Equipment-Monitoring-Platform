@@ -7,7 +7,8 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import DataError
 from sqlalchemy.orm import Session
 
-from app.models import Device, Gateway, Site, Telemetry
+from app.alerting import evaluate_accepted_reading
+from app.models import AlertState, Device, Gateway, Site, Telemetry
 from app.telemetry_schemas import TelemetryBatchResponse, TelemetryResponseItem
 from app.telemetry_validation import ValidatedTelemetryBatch
 
@@ -39,8 +40,7 @@ def ingest_batch(
     """Commit all accepted rows before exposing any per-item outcome."""
     results = []
     with Session(engine) as session, session.begin():
-        # Shared row locks allow concurrent ingestion while preventing registry
-        # reassignment, disabling, or deletion until this transaction commits.
+        # Shared ancestor locks prevent registry changes until commit.
         gateway = session.execute(
             select(Gateway.enabled, Site.enabled)
             .join(Gateway.site)
@@ -55,15 +55,18 @@ def ingest_batch(
             for item in batch.items
             if not isinstance(item, TelemetryResponseItem)
         }
+        # Lock devices exclusively in ID order so concurrent batches cannot
+        # advance one device's alert cursor at the same time.
         assignments = {
             row.device_id: row
             for row in session.execute(
                 select(Device.device_id, Device.gateway_id, Device.enabled)
                 .where(Device.device_id.in_(device_ids))
                 .order_by(Device.device_id)
-                .with_for_update(read=True)
+                .with_for_update()
             )
         }
+        states: dict[str, AlertState] = {}
         for index, item in enumerate(batch.items):
             if isinstance(item, TelemetryResponseItem):
                 results.append(item)
@@ -94,8 +97,8 @@ def ingest_batch(
                         insert(Telemetry)
                         .values(**values)
                         .on_conflict_do_nothing(constraint="uq_telemetry_identity")
-                        .returning(Telemetry.id)
-                    ).scalar_one_or_none()
+                        .returning(Telemetry.id, Telemetry.backend_received_at)
+                    ).one_or_none()
             except DataError:
                 results.append(
                     TelemetryResponseItem(
@@ -120,6 +123,10 @@ def ingest_batch(
                         "telemetry_identity_conflict",
                         extra={"batch_id": batch_id, "item_index": index},
                     )
+            else:
+                evaluate_accepted_reading(
+                    session, item, inserted.id, inserted.backend_received_at, states
+                )
             results.append(
                 TelemetryResponseItem(
                     **identity,
