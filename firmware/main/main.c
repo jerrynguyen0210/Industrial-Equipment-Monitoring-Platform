@@ -8,6 +8,7 @@
 #include "esp_system.h"
 #include "identity.h"
 #include "nvs_flash.h"
+#include "sampling.h"
 #include "wifi_station.h"
 
 static const char *TAG = "firmware";
@@ -39,6 +40,12 @@ void app_main(void) {
            s_identity.boot_id, s_identity.next_sequence, (int)esp_reset_reason(),
            esp_app_get_description()->version);
 
+  // Sensor sampling starts independently of Wi-Fi provisioning and reconnects.
+  err = sampling_start();
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "startup_failed stage=sampling error=%s", esp_err_to_name(err));
+  }
+
   app_config_t config;
   err = app_config_load(&config);
   if (err != ESP_OK) {
@@ -47,7 +54,7 @@ void app_main(void) {
   }
   ESP_LOGI(TAG, "config_ready device_id=%s", config.device_id);
 
-  err = wifi_station_start(&config);
+  err = iemp_wifi_station_start(&config);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "startup_failed stage=wifi error=%s", esp_err_to_name(err));
     return;

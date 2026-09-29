@@ -1,8 +1,8 @@
 # Firmware Coding Conventions
 
 Development rules for sensor acquisition, device identity, telemetry, and device
-connectivity. The startup project and identity host test are in place; sensor
-sampling and telemetry remain future work.
+connectivity. The startup project, identity host tests, and DS18B20 sampling
+component are in place; device telemetry publishing remains future work.
 
 ## 1. Scope and shared rules
 

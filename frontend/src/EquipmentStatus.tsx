@@ -52,7 +52,7 @@ function ReadingCard({ device }: { device: Device }) {
         </div>
         <span className={`data-indicator ${reading ? "available" : "missing"}`}>
           <span aria-hidden="true" />
-          {reading ? "Data available" : "No data"}
+          {reading ? "Recorded reading" : "No reading"}
         </span>
       </div>
 
@@ -69,7 +69,10 @@ function ReadingCard({ device }: { device: Device }) {
       <p className="reading-time">
         {reading
           ? formatMeasurementTime(device)
-          : "No reading has been recorded."}
+          : "No valid temperature reading has been recorded."}
+      </p>
+      <p className="sensor-state-note">
+        Live sensor connection status is unavailable.
       </p>
       <p className="alert-count">Active alerts: unavailable</p>
     </article>
@@ -136,6 +139,12 @@ export function EquipmentStatus() {
           {refreshing ? "Refreshing…" : "Refresh"}
         </button>
       </div>
+
+      <p className="sensor-setup-notice">
+        Temperature sensor installation is pending. Recorded values may come
+        from the simulator; a missing reading is unavailable, not 0°C. Sensor
+        faults are currently reported in firmware logs.
+      </p>
 
       {loading && (
         <p className="equipment-message" role="status">

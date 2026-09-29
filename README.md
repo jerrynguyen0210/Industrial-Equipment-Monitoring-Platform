@@ -12,8 +12,9 @@ database readiness. The [API-mode simulator](simulator/README.md) exercises
 authenticated batch ingestion, per-item outcomes, persistence and retries, with
 deterministic temperature profiles, seeded noise, sampling intervals and simulated
 reboots. The native C++17 gateway validates and queues MQTT readings for HTTP
-forwarding. The ESP32 firmware startup project establishes Wi-Fi and a per-boot
-event identity; sensor sampling and device MQTT publishing remain future work.
+forwarding. The ESP32 firmware establishes Wi-Fi and a per-boot event identity,
+and is set to sample a DS18B20 temperature probe every five seconds by default.
+The probe has not been installed yet; device MQTT publishing remains future work.
 
 ## Repository structure
 
@@ -35,7 +36,7 @@ tests spanning multiple workstreams belong in `tests/`.
 
 The simulator publishes to local Mosquitto. The native gateway validates and
 queues MQTT readings in SQLite, then forwards HTTP batches to the backend. The
-firmware currently starts Wi-Fi and prepares device identity; it does not publish
+firmware samples its physical probe into serial logs and does not publish
 telemetry yet. The frontend uses backend APIs, and the backend owns PostgreSQL
 access. Stopping the backend does not stop Mosquitto. See the
 [architecture references](docs/README.md).

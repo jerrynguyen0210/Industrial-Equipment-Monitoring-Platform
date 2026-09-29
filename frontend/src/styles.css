@@ -434,6 +434,16 @@ h2 {
   gap: 0.8rem;
 }
 
+.sensor-setup-notice {
+  margin: 0 0 1.2rem;
+  padding: 0.75rem 0.9rem;
+  border-left: 3px solid #d39119;
+  border-radius: 0.4rem;
+  background: #fff8e8;
+  color: #55432a;
+  font-size: 0.84rem;
+}
+
 .equipment-card {
   min-width: 0;
   padding: 1rem;
@@ -450,6 +460,7 @@ h2 {
 
 .device-id,
 .reading-time,
+.sensor-state-note,
 .alert-count,
 .dashboard-refresh-time {
   color: #66798a;
@@ -516,6 +527,7 @@ h2 {
 }
 
 .reading-time,
+.sensor-state-note,
 .alert-count {
   margin: 0.35rem 0 0;
 }

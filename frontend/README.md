@@ -13,7 +13,10 @@ The app uses React, strict TypeScript, Vite, Node.js 24.15+ (below 25), and npm
 with a committed lockfile. Overview (`/`), History (`/history`), and Service
 Status (`/status`) share the dashboard layout. Overview fetches registered
 devices and their latest stored temperatures from `GET /api/v1/devices`, with explicit
-loading, empty, and error states. Service Status displays backend/database
+loading, empty, and error states. The overview labels these as recorded readings
+and notes that physical temperature sensor installation is pending; the API does
+not report live sensor connection state, and stored values may come from the
+simulator. Service Status displays backend/database
 readiness. History queries the [backend history API](../docs/history-api.md),
 plots measurement-time points with visible gaps, and lets operators switch
 between UTC and local display. Alert evaluation is not implemented; active alert

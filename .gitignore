@@ -75,6 +75,7 @@ CMakeCache.txt
 firmware/sdkconfig
 firmware/sdkconfig.old
 firmware/sdkconfig.defaults.local
+firmware/managed_components/
 
 # Infrastructure state and local variables. Commit dependency lockfiles.
 .terraform/

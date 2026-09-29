@@ -95,7 +95,7 @@ static void on_ip_event(void *arg, esp_event_base_t base, int32_t event_id, void
   send_signal(WIFI_SIGNAL_GOT_IP);
 }
 
-esp_err_t wifi_station_start(const app_config_t *config) {
+esp_err_t iemp_wifi_station_start(const app_config_t *config) {
   if (config == NULL) {
     return ESP_ERR_INVALID_ARG;
   }

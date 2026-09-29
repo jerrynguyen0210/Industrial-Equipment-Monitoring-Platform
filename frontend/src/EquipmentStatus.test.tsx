@@ -35,7 +35,7 @@ describe("equipment dashboard", () => {
     );
   });
 
-  it("shows the simulated reading for its device and unavailable for missing data", async () => {
+  it("distinguishes stored readings from missing real sensor data", async () => {
     fetchMock.mockResolvedValue(
       response({
         devices: [
@@ -71,10 +71,23 @@ describe("equipment dashboard", () => {
     expect(within(demoCard!).getByText("24.6")).toBeTruthy();
     expect(within(demoCard!).getByText("celsius")).toBeTruthy();
     expect(within(demoCard!).getByText(/1 min ago/)).toBeTruthy();
-    expect(within(demoCard!).getByText("Data available")).toBeTruthy();
+    expect(within(demoCard!).getByText("Recorded reading")).toBeTruthy();
+    expect(
+      within(demoCard!).getByText(
+        "Live sensor connection status is unavailable.",
+      ),
+    ).toBeTruthy();
     expect(within(emptyCard!).getByText("Unavailable")).toBeTruthy();
-    expect(within(emptyCard!).getByText("No data")).toBeTruthy();
+    expect(within(emptyCard!).getByText("No reading")).toBeTruthy();
+    expect(
+      within(emptyCard!).getByText(
+        "No valid temperature reading has been recorded.",
+      ),
+    ).toBeTruthy();
     expect(within(emptyCard!).queryByText("0")).toBeNull();
+    expect(
+      screen.getByText(/Temperature sensor installation is pending/),
+    ).toBeTruthy();
   });
 
   it("shows a useful empty state when no devices are registered", async () => {
