@@ -29,7 +29,7 @@ The [health API contract](health-api.md) defines backend liveness, database
 readiness, response schemas, and dependency failure behavior for local integration.
 The [device status API](device-status-api.md) defines the current device and latest
 reading response, timestamp interpretation, and unavailable-data behavior.
-The [temperature history API](history-api.md) defines bounded measurement-time
+The [temperature history API](history-api.md) defines bounded event-time
 queries, ordering, truncation, and chart segment breaks.
 The [minimum registry](registry.md) documents site/gateway/device ownership,
 enabled states, PostgreSQL constraints, migrations, demo seeding, and verification.

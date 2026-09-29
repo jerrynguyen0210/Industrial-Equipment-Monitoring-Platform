@@ -11,22 +11,26 @@ from starlette.concurrency import run_in_threadpool
 
 from app.device_schemas import DeviceStatus, DeviceStatusList, LatestReading
 from app.models import Device, Telemetry
+from app.telemetry_time import event_time
 
 router = APIRouter()
 logger = logging.getLogger("uvicorn.error")
 
 
 def list_device_status(engine: Engine) -> DeviceStatusList:
-    """Return every registered device and its most recently received reading."""
+    """Return every registered device and its newest reading by event time."""
+    timestamp = event_time(Telemetry)
     latest = lateral(
         select(
             Telemetry.value,
             Telemetry.unit,
             Telemetry.measured_at,
+            Telemetry.gateway_received_at,
+            timestamp.label("event_at"),
             Telemetry.quality["clock"].as_string().label("clock_quality"),
         )
         .where(Telemetry.device_id == Device.device_id)
-        .order_by(Telemetry.backend_received_at.desc(), Telemetry.id.desc())
+        .order_by(timestamp.desc(), Telemetry.id.desc())
         .limit(1)
     ).alias("latest_reading")
     statement = (
@@ -36,6 +40,8 @@ def list_device_status(engine: Engine) -> DeviceStatusList:
             latest.c.value,
             latest.c.unit,
             latest.c.measured_at,
+            latest.c.gateway_received_at,
+            latest.c.event_at,
             latest.c.clock_quality,
         )
         .select_from(Device)
@@ -56,6 +62,14 @@ def list_device_status(engine: Engine) -> DeviceStatusList:
                         value=row.value,
                         unit=row.unit,
                         measured_at=row.measured_at,
+                        gateway_received_at=row.gateway_received_at,
+                        event_at=row.event_at,
+                        timestamp_source=(
+                            "measured_at"
+                            if row.measured_at is not None
+                            and row.clock_quality == "synchronised"
+                            else "gateway_received_at"
+                        ),
                         clock_quality=row.clock_quality,
                     )
                     if row.value is not None

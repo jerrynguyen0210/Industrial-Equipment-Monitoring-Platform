@@ -21,8 +21,8 @@ runs as UID/GID 10001 and has no application volume or host-source mount.
 | Endpoint | Meaning |
 | --- | --- |
 | `POST /api/v1/telemetry/batches` | Bearer-authenticated batch ingestion; ordered per-item outcomes after commit. |
-| `GET /api/v1/devices` | Registered devices with each device's latest stored reading; HTTP 503 if the database is unavailable. |
-| `GET /api/v1/devices/{device_id}/telemetry/history` | Bounded temperature history in measurement-time order; see the [history API](../docs/history-api.md). |
+| `GET /api/v1/devices` | Registered devices with each device's newest reading by event time; HTTP 503 if the database is unavailable. |
+| `GET /api/v1/devices/{device_id}/telemetry` | Bounded temperature history in event-time order; see the [history API](../docs/history-api.md). |
 | `GET /health` | HTTP 200 with `{"status":"ok"}` while the API can serve requests. No dependency check. |
 | `GET /ready` | HTTP 200 with `{"status":"ready","database":"ok"}` after an authenticated `SELECT 1`; HTTP 503 with `{"status":"unavailable","database":"unavailable"}` on database failure. |
 
@@ -71,8 +71,10 @@ PostgreSQL named volume. Repeat seeding preserves names, enabled states, and
 existing ownership; a conflicting parent assignment fails and rolls back the
 whole seed. Migration and seed are explicit deployment steps, never API startup
 side effects. Run migrations once before enabling a registry or telemetry consumer.
-The current head is `0002_telemetry`; this adds telemetry to an existing registry
-without changing its registrations.
+The current head is `0003_event_time_index`; it adds an expression index for the
+dashboard's current-reading and bounded-history queries. Apply migrations before
+deploying this backend version. Downgrading to `0002_telemetry` removes that index
+without deleting telemetry rows.
 
 For a native database, export `DATABASE_URL` or all five `PG*` settings into the
 shell, then run from `backend/`:

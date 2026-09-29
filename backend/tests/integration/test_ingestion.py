@@ -9,16 +9,15 @@ from decimal import Decimal
 from threading import Barrier, Event
 from unittest.mock import patch
 
+from app.main import create_app
+from app.models import Device, Gateway, Site, Telemetry
+from app.seed import DEVICE_ID, GATEWAY_ID, SITE_ID
+from app.telemetry_openapi import VALID_EVENT
 from fastapi.testclient import TestClient
 from postgres_test_case import PostgresTestCase
 from sqlalchemy import event, func, select, text, update
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
-
-from app.main import create_app
-from app.models import Device, Gateway, Site, Telemetry
-from app.seed import DEVICE_ID, GATEWAY_ID, SITE_ID
-from app.telemetry_openapi import VALID_EVENT
 
 ENDPOINT = "/api/v1/telemetry/batches"
 

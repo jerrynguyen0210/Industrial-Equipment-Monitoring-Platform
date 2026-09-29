@@ -12,6 +12,9 @@ export type LatestReading = {
   value: number | string;
   unit: string;
   measured_at: string | null;
+  gateway_received_at: string;
+  event_at: string;
+  timestamp_source: "measured_at" | "gateway_received_at";
   clock_quality: "synchronised" | "unsynchronised" | "estimated" | "unknown";
 };
 
@@ -22,8 +25,13 @@ export type DeviceStatus = {
 };
 
 export type HistoryPoint = {
-  measured_at: string;
+  event_at: string;
+  timestamp_source: "measured_at" | "gateway_received_at";
+  measured_at: string | null;
+  gateway_received_at: string;
+  clock_quality: LatestReading["clock_quality"];
   value: number | string;
+  unit: string;
   gap_before: boolean;
 };
 
@@ -85,6 +93,14 @@ function isLatestReading(value: unknown): value is LatestReading {
     typeof value.unit !== "string" ||
     !("measured_at" in value) ||
     (value.measured_at !== null && typeof value.measured_at !== "string") ||
+    !("gateway_received_at" in value) ||
+    !isTimestamp(value.gateway_received_at) ||
+    !("event_at" in value) ||
+    !isTimestamp(value.event_at) ||
+    !("timestamp_source" in value) ||
+    !["measured_at", "gateway_received_at"].includes(
+      String(value.timestamp_source),
+    ) ||
     !("clock_quality" in value) ||
     !["synchronised", "unsynchronised", "estimated", "unknown"].includes(
       String(value.clock_quality),
@@ -140,10 +156,24 @@ function isHistoryPoint(value: unknown): value is HistoryPoint {
   return (
     typeof value === "object" &&
     value !== null &&
+    "event_at" in value &&
+    isTimestamp(value.event_at) &&
+    "timestamp_source" in value &&
+    ["measured_at", "gateway_received_at"].includes(
+      String(value.timestamp_source),
+    ) &&
     "measured_at" in value &&
-    isTimestamp(value.measured_at) &&
+    (value.measured_at === null || isTimestamp(value.measured_at)) &&
+    "gateway_received_at" in value &&
+    isTimestamp(value.gateway_received_at) &&
+    "clock_quality" in value &&
+    ["synchronised", "unsynchronised", "estimated", "unknown"].includes(
+      String(value.clock_quality),
+    ) &&
     "value" in value &&
     isTemperatureValue(value.value) &&
+    "unit" in value &&
+    typeof value.unit === "string" &&
     "gap_before" in value &&
     typeof value.gap_before === "boolean"
   );
@@ -180,7 +210,7 @@ export async function getDeviceHistory(
     to: to.toISOString(),
   });
   const response = await fetch(
-    `${apiBaseUrl}/v1/devices/${encodeURIComponent(deviceId)}/telemetry/history?${query}`,
+    `${apiBaseUrl}/v1/devices/${encodeURIComponent(deviceId)}/telemetry?${query}`,
     { signal, cache: "no-store" },
   );
   if (!response.ok) {

@@ -1,14 +1,20 @@
-"""Bounded, measurement-time telemetry history response models."""
+"""Bounded, event-time telemetry history response models."""
 
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel
 
 
 class HistoryPoint(BaseModel):
-    measured_at: datetime
+    event_at: datetime
+    timestamp_source: Literal["measured_at", "gateway_received_at"]
+    measured_at: datetime | None
+    gateway_received_at: datetime
+    clock_quality: Literal["synchronised", "unsynchronised", "estimated", "unknown"]
     value: Decimal
+    unit: str
     gap_before: bool
 
 

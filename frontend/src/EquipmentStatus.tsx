@@ -5,15 +5,12 @@ const refreshIntervalMs = 15_000;
 
 function formatMeasurementTime(device: Device): string {
   const reading = device.latest_reading;
-  if (!reading?.measured_at || reading.clock_quality !== "synchronised") {
-    return "Measurement time unavailable";
-  }
+  if (!reading) return "Reading time unavailable";
 
-  const measuredAt = new Date(reading.measured_at);
-  if (!Number.isFinite(measuredAt.getTime()))
-    return "Measurement time unavailable";
+  const eventAt = new Date(reading.event_at);
+  if (!Number.isFinite(eventAt.getTime())) return "Reading time unavailable";
 
-  const ageSeconds = Math.floor((Date.now() - measuredAt.getTime()) / 1000);
+  const ageSeconds = Math.floor((Date.now() - eventAt.getTime()) / 1000);
   const age =
     ageSeconds < 0
       ? "timestamp is in the future"
@@ -32,9 +29,13 @@ function formatMeasurementTime(device: Device): string {
     minute: "2-digit",
     second: "2-digit",
     timeZoneName: "short",
-  }).format(measuredAt);
+  }).format(eventAt);
 
-  return `${timestamp} · ${age}`;
+  const source =
+    reading.timestamp_source === "measured_at"
+      ? "Measured"
+      : "Gateway received";
+  return `${source} ${timestamp} · ${age}`;
 }
 
 function ReadingCard({ device }: { device: Device }) {

@@ -1,4 +1,4 @@
-"""Read-only, bounded temperature history ordered by trustworthy measurement time."""
+"""Read-only, bounded temperature history ordered by event time."""
 
 import logging
 from datetime import datetime, timedelta
@@ -12,6 +12,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.history_schemas import DeviceHistory, HistoryPoint
 from app.models import Device, Telemetry
+from app.telemetry_time import event_time
 
 router = APIRouter()
 logger = logging.getLogger("uvicorn.error")
@@ -28,6 +29,7 @@ class DeviceNotFoundError(Exception):
 def read_device_history(
     engine: Engine, device_id: str, range_start: datetime, range_end: datetime
 ) -> DeviceHistory:
+    timestamp = event_time(Telemetry)
     with Session(engine) as session:
         exists = session.execute(
             select(Device.device_id).where(Device.device_id == device_id)
@@ -35,22 +37,25 @@ def read_device_history(
         if exists is None:
             raise DeviceNotFoundError
 
-        # Select the newest bounded window, then restore measurement-time order.
+        # Select the newest bounded window, then restore event-time order.
         rows = session.execute(
             select(
                 Telemetry.id,
                 Telemetry.boot_id,
                 Telemetry.sequence_number,
                 Telemetry.measured_at,
+                Telemetry.gateway_received_at,
+                Telemetry.quality["clock"].as_string().label("clock_quality"),
+                timestamp.label("event_at"),
                 Telemetry.value,
+                Telemetry.unit,
             )
             .where(
                 Telemetry.device_id == device_id,
-                Telemetry.measured_at >= range_start,
-                Telemetry.measured_at < range_end,
-                Telemetry.quality["clock"].as_string() == "synchronised",
+                timestamp >= range_start,
+                timestamp < range_end,
             )
-            .order_by(Telemetry.measured_at.desc(), Telemetry.id.desc())
+            .order_by(timestamp.desc(), Telemetry.id.desc())
             .limit(MAX_POINTS + 1)
         ).all()
 
@@ -59,16 +64,33 @@ def read_device_history(
     points: list[HistoryPoint] = []
     previous = None
     for row in ordered:
+        timestamp_source = (
+            "measured_at"
+            if row.measured_at is not None and row.clock_quality == "synchronised"
+            else "gateway_received_at"
+        )
         gap_before = (
             previous is None
             or row.boot_id != previous.boot_id
             or row.sequence_number != previous.sequence_number + 1
-            or row.measured_at - previous.measured_at > MAX_CONNECTED_GAP
+            or row.event_at - previous.event_at > MAX_CONNECTED_GAP
+            or (
+                (timestamp_source == "measured_at")
+                != (
+                    previous.measured_at is not None
+                    and previous.clock_quality == "synchronised"
+                )
+            )
         )
         points.append(
             HistoryPoint(
+                event_at=row.event_at,
+                timestamp_source=timestamp_source,
                 measured_at=row.measured_at,
+                gateway_received_at=row.gateway_received_at,
+                clock_quality=row.clock_quality,
                 value=row.value,
+                unit=row.unit,
                 gap_before=gap_before,
             )
         )
@@ -84,8 +106,11 @@ def read_device_history(
     )
 
 
+@router.get("/api/v1/devices/{device_id}/telemetry", response_model=DeviceHistory)
 @router.get(
-    "/api/v1/devices/{device_id}/telemetry/history", response_model=DeviceHistory
+    "/api/v1/devices/{device_id}/telemetry/history",
+    response_model=DeviceHistory,
+    include_in_schema=False,
 )
 async def get_device_history(
     request: Request,

@@ -29,6 +29,16 @@ function historyFor(url: string, withGaps = true) {
   const end = new Date(query.searchParams.get("to")!);
   const instant = (minutesAgo: number) =>
     new Date(end.getTime() - minutesAgo * 60_000).toISOString();
+  const point = (minutesAgo: number, value: string, gap_before: boolean) => ({
+    event_at: instant(minutesAgo),
+    timestamp_source: "measured_at",
+    measured_at: instant(minutesAgo),
+    gateway_received_at: instant(minutesAgo),
+    clock_quality: "synchronised",
+    value,
+    unit: "celsius",
+    gap_before,
+  });
   return {
     device_id: query.pathname.includes("device-2") ? "device-2" : "device-1",
     unit: "celsius",
@@ -37,10 +47,14 @@ function historyFor(url: string, withGaps = true) {
     truncated: false,
     points: withGaps
       ? [
-          { measured_at: instant(4), value: "20", gap_before: true },
-          { measured_at: instant(3), value: "21", gap_before: false },
-          { measured_at: instant(2), value: "22", gap_before: true },
-          { measured_at: instant(1), value: "23", gap_before: false },
+          point(4, "20", true),
+          point(3, "21", false),
+          {
+            ...point(2, "22", true),
+            timestamp_source: "gateway_received_at",
+            measured_at: null,
+          },
+          point(1, "23", false),
         ]
       : [],
   };
@@ -70,6 +84,7 @@ describe("one-device history", () => {
     expect(screen.getByText("Times shown in UTC.")).toBeTruthy();
     expect(view.container.querySelectorAll("polyline")).toHaveLength(2);
     expect(view.container.querySelectorAll("circle")).toHaveLength(4);
+    expect(screen.getByText("Gateway receipt")).toBeTruthy();
 
     await act(async () => {
       fireEvent.change(screen.getByLabelText("Device"), {
@@ -78,7 +93,7 @@ describe("one-device history", () => {
     });
     expect(
       fetchMock.mock.calls.some(([input]) =>
-        String(input).includes("/v1/devices/device-2/telemetry/history?"),
+        String(input).includes("/v1/devices/device-2/telemetry?"),
       ),
     ).toBe(true);
 
@@ -118,9 +133,7 @@ describe("one-device history", () => {
     render(<History />);
     expect(screen.getByRole("status").textContent).toContain("Loading devices");
     await act(async () => resolveDevices(response(devices)));
-    expect(
-      screen.getByText("No synchronized readings in this time range."),
-    ).toBeTruthy();
+    expect(screen.getByText("No readings in this time range.")).toBeTruthy();
     cleanup();
 
     fetchMock.mockReset();

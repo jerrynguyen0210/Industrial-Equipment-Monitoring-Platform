@@ -13,6 +13,9 @@ class LatestReading(BaseModel):
     value: Decimal
     unit: str
     measured_at: datetime | None
+    gateway_received_at: datetime
+    event_at: datetime
+    timestamp_source: Literal["measured_at", "gateway_received_at"]
     clock_quality: Literal["synchronised", "unsynchronised", "estimated", "unknown"]
 
 

@@ -55,7 +55,7 @@ function HistoryChart({
   const from = Date.parse(history.range_start);
   const to = Date.parse(history.range_end);
   const x = (point: HistoryPoint) =>
-    60 + ((Date.parse(point.measured_at) - from) / (to - from)) * 620;
+    60 + ((Date.parse(point.event_at) - from) / (to - from)) * 620;
   const y = (point: HistoryPoint) =>
     250 - ((Number(point.value) - yMin) / (yMax - yMin)) * 220;
   const segments = lineSegments(history.points);
@@ -94,7 +94,7 @@ function HistoryChart({
         )}
         {history.points.map((point, index) => (
           <circle
-            key={`${point.measured_at}-${index}`}
+            key={`${point.event_at}-${index}`}
             className="chart-point"
             cx={x(point)}
             cy={y(point)}
@@ -254,7 +254,7 @@ export function History() {
             <p role="alert">History could not be loaded. Try refreshing.</p>
           )}
           {history && history.points.length === 0 && (
-            <p>No synchronized readings in this time range.</p>
+            <p>No readings in this time range.</p>
           )}
           {history && history.points.length > 0 && (
             <>
@@ -272,15 +272,21 @@ export function History() {
                   <table>
                     <thead>
                       <tr>
-                        <th scope="col">Measured at</th>
+                        <th scope="col">Time</th>
+                        <th scope="col">Source</th>
                         <th scope="col">Temperature ({history.unit})</th>
                         <th scope="col">Line</th>
                       </tr>
                     </thead>
                     <tbody>
                       {history.points.map((point, index) => (
-                        <tr key={`${point.measured_at}-${index}`}>
-                          <td>{formatTime(point.measured_at, timezone)}</td>
+                        <tr key={`${point.event_at}-${index}`}>
+                          <td>{formatTime(point.event_at, timezone)}</td>
+                          <td>
+                            {point.timestamp_source === "measured_at"
+                              ? "Device clock"
+                              : "Gateway receipt"}
+                          </td>
                           <td>{point.value}</td>
                           <td>
                             {index === 0

@@ -23,6 +23,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from app.telemetry_time import event_time
 from app.types import UTCDateTime
 
 
@@ -135,3 +136,12 @@ class Telemetry(Base):
     value: Mapped[Decimal] = mapped_column(Numeric)
     unit: Mapped[str] = mapped_column(String(32))
     quality: Mapped[dict[str, str]] = mapped_column(JSONB)
+
+
+# Both the per-device latest-reading lookup and bounded history use this order.
+Index(
+    "ix_telemetry_device_event_at",
+    Telemetry.device_id,
+    event_time(Telemetry).desc(),
+    Telemetry.id.desc(),
+)

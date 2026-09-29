@@ -46,6 +46,9 @@ describe("equipment dashboard", () => {
               value: "24.6",
               unit: "celsius",
               measured_at: "2026-09-26T02:04:28Z",
+              gateway_received_at: "2026-09-26T02:04:29Z",
+              event_at: "2026-09-26T02:04:28Z",
+              timestamp_source: "measured_at",
               clock_quality: "synchronised",
             },
           },
@@ -53,6 +56,19 @@ describe("equipment dashboard", () => {
             device_id: "device-without-data",
             name: "New device",
             latest_reading: null,
+          },
+          {
+            device_id: "device-gateway-time",
+            name: "Gateway timed device",
+            latest_reading: {
+              value: "18.2",
+              unit: "celsius",
+              measured_at: "2026-09-27T02:00:00Z",
+              gateway_received_at: "2026-09-26T02:03:28Z",
+              event_at: "2026-09-26T02:03:28Z",
+              timestamp_source: "gateway_received_at",
+              clock_quality: "unsynchronised",
+            },
           },
         ],
       }),
@@ -65,6 +81,9 @@ describe("equipment dashboard", () => {
       .closest("article");
     const emptyCard = screen
       .getByRole("heading", { name: "New device" })
+      .closest("article");
+    const gatewayCard = screen
+      .getByRole("heading", { name: "Gateway timed device" })
       .closest("article");
     expect(demoCard).not.toBeNull();
     expect(emptyCard).not.toBeNull();
@@ -85,6 +104,9 @@ describe("equipment dashboard", () => {
       ),
     ).toBeTruthy();
     expect(within(emptyCard!).queryByText("0")).toBeNull();
+    expect(
+      within(gatewayCard!).getByText(/Gateway received.*2 min ago/),
+    ).toBeTruthy();
     expect(
       screen.getByText(/Temperature sensor installation is pending/),
     ).toBeTruthy();

@@ -80,7 +80,7 @@ function Overview() {
           Overview
         </h1>
         <p className="page-description">
-          Current recorded temperature readings and their measurement times.
+          Current recorded temperature readings with device or gateway times.
         </p>
       </div>
 
