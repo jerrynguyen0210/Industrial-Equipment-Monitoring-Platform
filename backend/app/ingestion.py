@@ -13,6 +13,18 @@ from app.telemetry_validation import ValidatedTelemetryBatch
 
 logger = logging.getLogger("uvicorn.error")
 
+# The identity is enforced by uq_telemetry_identity. Receipt times and batch
+# metadata describe delivery, so retries may change them without changing the event.
+IMMUTABLE_CONTENT_FIELDS = (
+    "schema_version",
+    "measured_at",
+    "device_uptime_ms",
+    "metric",
+    "value",
+    "unit",
+    "quality",
+)
+
 
 class GatewayForbiddenError(Exception):
     """The credential maps to an absent or disabled gateway/site."""
@@ -97,9 +109,8 @@ def ingest_batch(
                     select(Telemetry).filter_by(**identity).with_for_update(read=True)
                 ).scalar_one()
                 matches = all(
-                    getattr(existing, field) == value
-                    for field, value in values.items()
-                    if field != "gateway_received_at"
+                    getattr(existing, field) == values[field]
+                    for field in IMMUTABLE_CONTENT_FIELDS
                 )
                 outcome = "duplicate" if matches else "rejected"
                 if not matches:

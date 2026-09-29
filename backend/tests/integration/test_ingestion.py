@@ -9,15 +9,16 @@ from decimal import Decimal
 from threading import Barrier
 from unittest.mock import patch
 
-from app.main import create_app
-from app.models import Device, Gateway, Site, Telemetry
-from app.seed import DEVICE_ID, GATEWAY_ID, SITE_ID
-from app.telemetry_openapi import VALID_EVENT
 from fastapi.testclient import TestClient
 from postgres_test_case import PostgresTestCase
 from sqlalchemy import event, func, select, update
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
+
+from app.main import create_app
+from app.models import Device, Gateway, Site, Telemetry
+from app.seed import DEVICE_ID, GATEWAY_ID, SITE_ID
+from app.telemetry_openapi import VALID_EVENT
 
 ENDPOINT = "/api/v1/telemetry/batches"
 
@@ -149,6 +150,47 @@ class IngestionTests(PostgresTestCase):
                 (stored.gateway_received_at, stored.backend_received_at), receipts
             )
             self.assertEqual(stored.value, Decimal("31.4"))
+
+    def test_ten_submissions_store_one_row_and_conflict_preserves_original(
+        self,
+    ) -> None:
+        responses = [self.post(self.reading) for _ in range(10)]
+        self.assertTrue(all(response.status_code == 200 for response in responses))
+        self.assertEqual(
+            [response.json()["results"][0]["outcome"] for response in responses],
+            ["accepted", *(["duplicate"] * 9)],
+        )
+        self.assertEqual(self.count(), 1)
+        with Session(self.engine) as session:
+            original = dict(
+                session.execute(select(*Telemetry.__table__.columns)).mappings().one()
+            )
+
+        with patch("app.ingestion.logger.info") as conflict_log:
+            conflict = self.post(self.reading | {"value": 99})
+        self.assertEqual(conflict.status_code, 200, conflict.text)
+        self.assertEqual(
+            conflict.json()["results"][0],
+            {
+                "device_id": DEVICE_ID,
+                "boot_id": self.reading["boot_id"],
+                "sequence_number": self.reading["sequence_number"],
+                "outcome": "rejected",
+                "reason": "identity_conflict",
+            },
+        )
+        conflict_log.assert_called_once_with(
+            "telemetry_identity_conflict",
+            extra={"batch_id": conflict.json()["batch_id"], "item_index": 0},
+        )
+        with Session(self.engine) as session:
+            stored = dict(
+                session.execute(select(*Telemetry.__table__.columns)).mappings().one()
+            )
+        self.assertEqual(stored, original)
+        self.assertEqual(
+            self.post(self.reading).json()["results"][0]["outcome"], "duplicate"
+        )
 
     def test_gateway_identity_cannot_be_spoofed_and_disabled_access_is_rejected(
         self,
