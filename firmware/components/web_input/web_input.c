@@ -10,20 +10,32 @@
 #include "temperature_input.h"
 
 #define WEB_INPUT_MAX_KEY 63
+#define WEB_INPUT_MAX_DEVICE_ID 128
+// Worst-case HTML escape expands one character to six ("&quot;").
+#define WEB_INPUT_DEVICE_ID_HTML_SIZE (WEB_INPUT_MAX_DEVICE_ID * 6 + 1)
 
 static const char *TAG = "web_input";
 static httpd_handle_t s_server;
 static const char *s_key;
+static char s_device_id_html[WEB_INPUT_DEVICE_ID_HTML_SIZE];
 
-static const char PAGE[] =
+static const char PAGE_HEAD[] =
     "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
     "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-    "<title>ESP32 temperature input</title>"
+    "<title>ESP32 temperature input on ";
+
+static const char PAGE_MIDDLE[] =
+    "</title>"
     "<style>body{font:16px system-ui,sans-serif;max-width:28rem;margin:3rem auto;"
     "padding:0 1rem;color:#18202a}label{display:block;margin:1rem 0 .35rem}"
     "input,button{box-sizing:border-box;width:100%;padding:.7rem;font:inherit}"
-    "button{margin-top:1.3rem;cursor:pointer}#result{min-height:1.5rem}</style>"
+    "button{margin-top:1.3rem;cursor:pointer}#result{min-height:1.5rem}"
+    "h1{margin-bottom:.4rem}.device{margin-top:0;color:#4a5563}</style>"
     "</head><body><main><h1>Temperature input</h1>"
+    "<p class=\"device\">Device: <strong>";
+
+static const char PAGE_TAIL[] =
+    "</strong></p>"
     "<p>Enter one Celsius reading. Each submission queues one MQTT event.</p>"
     "<form id=\"entry\"><label for=\"value\">Temperature (&deg;C)</label>"
     "<input id=\"value\" type=\"number\" step=\"any\" min=\"-55\" max=\"125\" required>"
@@ -65,7 +77,62 @@ static esp_err_t page_handler(httpd_req_t *request) {
   if (err != ESP_OK) {
     return err;
   }
-  return httpd_resp_send(request, PAGE, HTTPD_RESP_USE_STRLEN);
+  err = httpd_resp_send_chunk(request, PAGE_HEAD, HTTPD_RESP_USE_STRLEN);
+  if (err == ESP_OK) {
+    err = httpd_resp_send_chunk(request, s_device_id_html, HTTPD_RESP_USE_STRLEN);
+  }
+  if (err == ESP_OK) {
+    err = httpd_resp_send_chunk(request, PAGE_MIDDLE, HTTPD_RESP_USE_STRLEN);
+  }
+  if (err == ESP_OK) {
+    err = httpd_resp_send_chunk(request, s_device_id_html, HTTPD_RESP_USE_STRLEN);
+  }
+  if (err == ESP_OK) {
+    err = httpd_resp_send_chunk(request, PAGE_TAIL, HTTPD_RESP_USE_STRLEN);
+  }
+  if (err != ESP_OK) {
+    return err;
+  }
+  return httpd_resp_send_chunk(request, NULL, 0);
+}
+
+static bool html_escape(const char *input, char *output, size_t output_size) {
+  size_t used = 0;
+  for (const char *cursor = input; *cursor != '\0'; ++cursor) {
+    const char *replacement;
+    switch (*cursor) {
+      case '&':
+        replacement = "&amp;";
+        break;
+      case '<':
+        replacement = "&lt;";
+        break;
+      case '>':
+        replacement = "&gt;";
+        break;
+      case '"':
+        replacement = "&quot;";
+        break;
+      case '\'':
+        replacement = "&#39;";
+        break;
+      default:
+        replacement = NULL;
+        break;
+    }
+    const size_t length = replacement != NULL ? strlen(replacement) : 1;
+    if (used + length >= output_size) {
+      return false;
+    }
+    if (replacement != NULL) {
+      memcpy(output + used, replacement, length);
+    } else {
+      output[used] = *cursor;
+    }
+    used += length;
+  }
+  output[used] = '\0';
+  return true;
 }
 
 static bool key_matches(httpd_req_t *request) {
@@ -135,7 +202,12 @@ static esp_err_t temperature_handler(httpd_req_t *request) {
 }
 
 esp_err_t web_input_start(const app_config_t *config) {
-  if (config == NULL || config->web_input_key == NULL || s_server != NULL) {
+  if (config == NULL || config->web_input_key == NULL || config->device_id == NULL ||
+      s_server != NULL) {
+    return ESP_ERR_INVALID_ARG;
+  }
+  if (strlen(config->device_id) > WEB_INPUT_MAX_DEVICE_ID ||
+      !html_escape(config->device_id, s_device_id_html, sizeof(s_device_id_html))) {
     return ESP_ERR_INVALID_ARG;
   }
   s_key = config->web_input_key;
