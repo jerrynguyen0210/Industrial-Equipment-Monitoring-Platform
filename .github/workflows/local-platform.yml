@@ -52,7 +52,7 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Run shared QA fixture and CLI tests
         run: python -m unittest discover -s tests -p 'test_*.py' -v
-      - name: Verify registry and telemetry against PostgreSQL
+      - name: Verify registry, telemetry, and S1-QA-01..10 against PostgreSQL
         working-directory: backend
         env:
           REGISTRY_TEST_DATABASE_URL: postgresql://registry_test:registry-test-only@127.0.0.1:5432/postgres

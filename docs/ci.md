@@ -57,6 +57,23 @@ recovery remain untested.
   It also runs the eight shared QA edge cases and compares every persisted field
   with the catalog's accepted events, including original data after conflicts.
 
+The backend PostgreSQL integration discovery includes
+[`test_sprint1_qa.py`](../backend/tests/integration/test_sprint1_qa.py). Its ten
+test names match the Sprint 1 QA matrix in the QA decision log:
+
+| Test IDs | Contract checked |
+| --- | --- |
+| S1-QA-01..03 | Valid persistence, ten submissions with one row, and logged identity conflict without mutation. |
+| S1-QA-04..06 | Ordered mixed outcomes, retry after a lost commit acknowledgement, and stable version/item rejection reasons. |
+| S1-QA-07 | Null measurement time with an unsynchronised clock remains null. |
+| S1-QA-08..09 | Older event times within a boot and from a prior boot remain in history without replacing current reading or advancing live alert state. |
+| S1-QA-10 | PostgreSQL defines uniqueness on `(device_id, boot_id, sequence_number)`; a new boot can reuse a sequence number. |
+
+The implemented current-reading and alert ordering rule uses event time (trusted
+measurement time, otherwise gateway receipt time). The QA-08 and QA-09 checks
+exercise replay with older event times; they do not establish a separate boot or
+sequence cursor for readings whose event time is later.
+
 Cache support follows the official [setup-python documentation](https://github.com/actions/setup-python#caching-packages-dependencies)
 and [setup-node documentation](https://github.com/actions/setup-node#caching-global-packages-data).
 Caches speed downloads; they never replace verification. Keep lockfiles updated
@@ -70,6 +87,12 @@ Start from a clean checkout with Python 3.13 and Node.js 24.15+ (below 25). Foll
 to install locked dependencies and run Ruff and unittest.
 The registry/telemetry integration command and PostgreSQL prerequisites are in the
 [backend development checks](../backend/README.md#development-checks).
+To run only the Sprint 1 QA matrix from `backend/`, use the same
+`REGISTRY_TEST_DATABASE_URL` and run:
+
+```sh
+python -m unittest discover -s tests/integration -p test_sprint1_qa.py -v
+```
 
 In `frontend/`, run:
 
