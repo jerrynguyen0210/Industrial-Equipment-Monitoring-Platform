@@ -72,14 +72,24 @@ std::string utc_now() {
   return result.str();
 }
 
-void log(Level level, std::string_view component, std::string_view event,
-         std::string_view message) {
+void log(Level level, std::string_view component, std::string_view event, std::string_view message,
+         const LogContext &context) {
   static std::mutex output_mutex;
   const std::lock_guard<std::mutex> lock(output_mutex);
   std::ostream &output = level == Level::error ? std::cerr : std::cout;
   output << "{\"timestamp\":\"" << utc_now() << "\",\"level\":\"" << level_name(level)
          << "\",\"component\":\"" << escape(component) << "\",\"event\":\"" << escape(event)
-         << "\",\"message\":\"" << escape(message) << "\"}" << std::endl;
+         << "\",\"message\":\"" << escape(message) << '"';
+  if (context.queue_depth) {
+    output << ",\"queue_depth\":" << *context.queue_depth;
+  }
+  if (context.retry_in_ms) {
+    output << ",\"retry_in_ms\":" << *context.retry_in_ms;
+  }
+  if (context.consecutive_failures) {
+    output << ",\"consecutive_failures\":" << *context.consecutive_failures;
+  }
+  output << '}' << std::endl;
 }
 
 } // namespace gateway

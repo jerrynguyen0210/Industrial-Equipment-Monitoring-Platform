@@ -166,8 +166,13 @@ Cleanup removes only the generated project's containers, networks, and test
 volumes, including on ordinary failures. Abruptly killing Python can leave a test
 project behind; inspect `docker compose ls --all` and use its exact generated
 project name when cleaning it up. No hardware or native gateway is exercised.
-This covers infrastructure and the API ingestion slice; gateway queue durability
-and full MVP acceptance require additional scenarios.
+This covers infrastructure and the API ingestion slice; full MVP acceptance
+requires additional scenarios.
+
+The [native gateway outage demo](../gateway/README.md#durable-queue-and-recovery)
+runs an isolated Compose backend and PostgreSQL alongside the Linux gateway,
+stops the backend for one to two minutes, publishes MQTT events during the
+outage, and checks automatic drain plus one persisted row per event.
 
 Registry migration/constraint acceptance tests live in
 [`backend/tests/integration/`](../backend/tests/integration/test_registry.py).

@@ -2,6 +2,7 @@
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import os
 from pathlib import Path
 import queue
 import signal
@@ -15,12 +16,17 @@ import time
 import unittest
 
 
+class ReusableHTTPServer(ThreadingHTTPServer):
+    allow_reuse_address = True
+
+
 class DeliveryTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.gateway = Path(sys.argv[1]).resolve()
         cls.broker = Path(sys.argv[2]).resolve()
         cls.password_tool = Path(sys.argv[3]).resolve()
+        cls.publisher = Path(sys.argv[4]).resolve()
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -52,6 +58,8 @@ class DeliveryTests(unittest.TestCase):
 
         self.requests = queue.Queue()
         self.request_count = 0
+        self.response_mode = "mixed"
+        self.backend_events = {}
         owner = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -59,7 +67,7 @@ class DeliveryTests(unittest.TestCase):
                 body = self.rfile.read(int(self.headers["Content-Length"]))
                 owner.requests.put((self.path, self.headers.get("Authorization"), body))
                 owner.request_count += 1
-                if owner.request_count == 1:
+                if owner.response_mode == "mixed" and owner.request_count == 1:
                     self.send_response(503)
                     self.end_headers()
                     return
@@ -67,7 +75,17 @@ class DeliveryTests(unittest.TestCase):
                 outcomes = {1: "accepted", 2: "duplicate", 3: "rejected"}
                 results = []
                 for event in events:
-                    outcome = outcomes[event["sequence_number"]]
+                    if owner.response_mode == "dedupe":
+                        identity = (event["device_id"], event["boot_id"],
+                                    event["sequence_number"])
+                        previous = owner.backend_events.get(identity)
+                        if previous is None:
+                            owner.backend_events[identity] = event
+                            outcome = "accepted"
+                        else:
+                            outcome = "duplicate" if previous == event else "rejected"
+                    else:
+                        outcome = outcomes[event["sequence_number"]]
                     result = {
                         "device_id": event["device_id"],
                         "boot_id": event["boot_id"],
@@ -75,7 +93,9 @@ class DeliveryTests(unittest.TestCase):
                         "outcome": outcome,
                     }
                     if outcome == "rejected":
-                        result["reason"] = "unknown_device"
+                        result["reason"] = ("identity_conflict"
+                                            if owner.response_mode == "dedupe"
+                                            else "unknown_device")
                     results.append(result)
                 response = json.dumps({"batch_id": "test-batch", "results": results}).encode()
                 self.send_response(200)
@@ -87,22 +107,35 @@ class DeliveryTests(unittest.TestCase):
             def log_message(self, *_args):
                 pass
 
-        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.handler_type = Handler
+        self.server = ReusableHTTPServer(("127.0.0.1", 0), Handler)
+        self.server_port = self.server.server_port
         self.server_thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.server_thread.start()
+        self.server_running = True
         self.addCleanup(self.stop_server)
         with socket.socket() as temporary_socket:
             temporary_socket.bind(("127.0.0.1", 0))
             mqtt_port = temporary_socket.getsockname()[1]
+        self.mqtt_port = mqtt_port
         password_file = self.directory / "broker-passwd"
         subprocess.run(
             [self.password_tool, "-b", "-c", password_file, "gateway-test", "test-password"],
             check=True, capture_output=True, timeout=5,
         )
+        subprocess.run(
+            [self.password_tool, "-b", password_file, "device-1", "device-password"],
+            check=True, capture_output=True, timeout=5,
+        )
+        acl = self.directory / "broker-acl"
+        acl.write_text(
+            "user gateway-test\ntopic read equipment/+/telemetry\n"
+            "user device-1\ntopic write equipment/device-1/telemetry\n"
+        )
         broker_config = self.directory / "mosquitto.conf"
         broker_config.write_text(
             f"listener {mqtt_port} 127.0.0.1\nallow_anonymous false\n"
-            f"password_file {password_file}\npersistence false\n"
+            f"password_file {password_file}\nacl_file {acl}\npersistence false\n"
         )
         self.broker_process = subprocess.Popen(
             [self.broker, "-c", broker_config],
@@ -125,16 +158,25 @@ class DeliveryTests(unittest.TestCase):
             "MQTT_HOST=127.0.0.1\n"
             f"MQTT_PORT={mqtt_port}\n"
             "MQTT_USERNAME=gateway-test\nMQTT_PASSWORD_FILE=mqtt.password\n"
-            f"API_BASE_URL=http://127.0.0.1:{self.server.server_port}/api\n"
+            f"API_BASE_URL=http://127.0.0.1:{self.server_port}/api\n"
             "GATEWAY_API_KEY=test-token-123456\nQUEUE_DB_PATH=queue.sqlite3\n"
         )
         self.process = None
         self.addCleanup(self.stop_gateway)
 
     def stop_server(self):
+        if not self.server_running:
+            return
         self.server.shutdown()
         self.server.server_close()
         self.server_thread.join(timeout=3)
+        self.server_running = False
+
+    def start_server(self):
+        self.server = ReusableHTTPServer(("127.0.0.1", self.server_port), self.handler_type)
+        self.server_thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.server_thread.start()
+        self.server_running = True
 
     def stop_broker(self):
         if self.broker_process.poll() is None:
@@ -143,6 +185,7 @@ class DeliveryTests(unittest.TestCase):
 
     def start_gateway(self):
         self.records = queue.Queue()
+        self.all_records = []
         self.process = subprocess.Popen(
             [self.gateway, "--config", self.config],
             stdout=subprocess.PIPE,
@@ -154,7 +197,9 @@ class DeliveryTests(unittest.TestCase):
 
     def collect(self, stream):
         for line in stream:
-            self.records.put(json.loads(line))
+            record = json.loads(line)
+            self.all_records.append(record)
+            self.records.put(record)
 
     def wait_for(self, event, timeout=6):
         deadline = time.monotonic() + timeout
@@ -215,6 +260,49 @@ class DeliveryTests(unittest.TestCase):
             ).fetchone(), (self.payloads[3], "2026-01-01T00:00:00.000Z",
                            "unknown_device", 2))
             self.assertEqual(connection.execute("PRAGMA quick_check").fetchone(), ("ok",))
+
+    def test_backend_outage_recovers_without_gateway_restart(self):
+        with sqlite3.connect(self.database) as connection:
+            connection.execute("DELETE FROM intake_events")
+        self.response_mode = "dedupe"
+        self.stop_server()
+        self.start_gateway()
+        self.wait_for("subscribed")
+        original_pid = self.process.pid
+
+        for sequence in (1, 2, 3):
+            subprocess.run(
+                [self.publisher, "-h", "127.0.0.1", "-p", str(self.mqtt_port),
+                 "-u", "device-1", "-P", "device-password", "-q", "1",
+                 "-t", "equipment/device-1/telemetry", "-m", self.payloads[sequence]],
+                check=True, capture_output=True, timeout=5,
+            )
+            stored = self.wait_for("message_stored")
+            self.assertEqual(stored["queue_depth"], sequence)
+
+        outage_seconds = int(os.environ.get("GATEWAY_OUTAGE_SECONDS", "3"))
+        time.sleep(outage_seconds)
+        self.assertIsNone(self.process.poll(), "gateway stopped during backend outage")
+        retries = [record for record in self.all_records
+                   if record["event"] == "retry_scheduled"]
+        self.assertTrue(retries, "gateway did not schedule a retry")
+        for record in retries:
+            self.assertGreaterEqual(record["retry_in_ms"], 1000)
+            self.assertLessEqual(record["retry_in_ms"], 30000)
+            self.assertGreaterEqual(record["queue_depth"], 1)
+            self.assertGreaterEqual(record["consecutive_failures"], 1)
+        with sqlite3.connect(self.database) as connection:
+            self.assertEqual(connection.execute("SELECT COUNT(*) FROM intake_events").fetchone(),
+                             (3,))
+        self.start_server()
+        self.wait_for("batch_applied", timeout=40)
+        self.assertEqual(self.process.pid, original_pid)
+        self.assertEqual(len(self.backend_events), 3)
+        with sqlite3.connect(self.database) as connection:
+            self.assertEqual(connection.execute("SELECT COUNT(*) FROM intake_events").fetchone(),
+                             (0,))
+            self.assertEqual(connection.execute("SELECT COUNT(*) FROM quarantined_events").fetchone(),
+                             (0,))
 
 
 if __name__ == "__main__":

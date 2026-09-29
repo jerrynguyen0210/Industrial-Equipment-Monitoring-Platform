@@ -1,11 +1,13 @@
 #include "gateway/forwarder.hpp"
 #include "gateway/http/client.hpp"
+#include "gateway/retry_backoff.hpp"
 #include "gateway/sqlite/store.hpp"
 
 #include <sqlite3.h>
 
 #include <cstdlib>
 #include <filesystem>
+#include <iterator>
 #include <stdexcept>
 #include <string>
 #include <system_error>
@@ -82,7 +84,7 @@ public:
   gateway::http::Response post_batch(std::string_view body) override {
     posted = std::string(body);
     if (fail) {
-      throw std::runtime_error("simulated connection failure");
+      throw std::runtime_error("simulated HTTP timeout");
     }
     return response;
   }
@@ -140,20 +142,29 @@ void test_delivery_outcomes(const std::filesystem::path &path) {
          "retry test event must insert");
   client.fail = true;
   expect(forwarder.drain_once(client) == gateway::Forwarder::RunResult::retry,
-         "connection failure must request retry");
+         "timeout must request retry");
   expect(store.pending_count() == 1 && forwarder.load_pending()[0].attempt_count == 1,
-         "connection failure must retain the event and its attempt count");
+         "timeout must retain the event and its attempt count");
   client.fail = false;
+  for (const int status : {429, 503}) {
+    client.response.status_code = status;
+    expect(forwarder.drain_once(client) == gateway::Forwarder::RunResult::retry,
+           "HTTP 429 and 5xx must request retry");
+    expect(store.pending_count() == 1, "HTTP 429 and 5xx must retain the event");
+  }
+  expect(forwarder.load_pending()[0].attempt_count == 3,
+         "transient failures must retain claim history");
+  client.response.status_code = 200;
   client.response.body =
       "{\"batch_id\":\"batch-2\",\"results\":[{\"device_id\":\"device-1\","
       "\"boot_id\":\"boot-1\",\"sequence_number\":999,\"outcome\":\"accepted\"}]}";
   expect(forwarder.drain_once(client) == gateway::Forwarder::RunResult::retry,
          "mismatched response must not delete data");
-  expect(store.pending_count() == 1 && forwarder.load_pending()[0].attempt_count == 2,
+  expect(store.pending_count() == 1 && forwarder.load_pending()[0].attempt_count == 4,
          "mismatched response must retain the event");
   store.close();
   gateway::sqlite::Store reopened(path);
-  expect(reopened.pending_count() == 1 && reopened.load_pending(1)[0].attempt_count == 2,
+  expect(reopened.pending_count() == 1 && reopened.load_pending(1)[0].attempt_count == 4,
          "failed delivery must survive restart");
   gateway::Forwarder recovered_forwarder(reopened);
   client.response.body = "{\"batch_id\":\"batch-3\",\"results\":[{\"device_id\":\"device-1\","
@@ -162,6 +173,22 @@ void test_delivery_outcomes(const std::filesystem::path &path) {
   expect(recovered_forwarder.drain_once(client) == gateway::Forwarder::RunResult::retry,
          "contradictory response keys must not delete data");
   expect(reopened.pending_count() == 1, "contradictory response must leave the event pending");
+}
+
+void test_backoff() {
+  gateway::RetryBackoff backoff(12345);
+  const int caps[] = {2000, 4000, 8000, 16000, 30000, 30000, 30000};
+  for (unsigned index = 0; index < std::size(caps); ++index) {
+    const auto delay = backoff.next_delay().count();
+    expect(delay >= caps[index] / 2 && delay <= caps[index],
+           "retry delay must have bounded exponential jitter");
+    expect(backoff.consecutive_failures() == index + 1, "retry failure count must increase");
+  }
+  backoff.reset();
+  expect(backoff.consecutive_failures() == 0, "success must reset retry failure count");
+  const auto fresh_delay = backoff.next_delay().count();
+  expect(fresh_delay >= 1000 && fresh_delay <= 2000,
+         "retry delay must return to its initial range after recovery");
 }
 
 void test_migration_and_restart(const std::filesystem::path &path) {
@@ -260,4 +287,5 @@ int main() {
   TemporaryDirectory directory;
   test_migration_and_restart(directory.path / "queue.sqlite3");
   test_delivery_outcomes(directory.path / "delivery.sqlite3");
+  test_backoff();
 }

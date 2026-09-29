@@ -1,6 +1,7 @@
 #include "gateway/forwarder.hpp"
 
 #include "gateway/log.hpp"
+#include "gateway/retry_backoff.hpp"
 
 #include <nlohmann/json.hpp>
 
@@ -238,7 +239,8 @@ Forwarder::RunResult Forwarder::drain_once(http::Client &client) {
     body = batch_json(claimed);
   } catch (const std::exception &) {
     release();
-    log(Level::error, "forwarder", "delivery_deferred", "stored_event_conversion_failed");
+    log(Level::error, "forwarder", "delivery_deferred", "stored_event_conversion_failed",
+        LogContext{store_.queue_depth()});
     return RunResult::retry;
   }
   http::Response response;
@@ -246,13 +248,15 @@ Forwarder::RunResult Forwarder::drain_once(http::Client &client) {
     response = client.post_batch(body);
   } catch (const std::exception &) {
     release();
-    log(Level::warning, "forwarder", "delivery_deferred", "http_request_failed");
+    log(Level::warning, "forwarder", "delivery_deferred", "http_request_failed",
+        LogContext{store_.queue_depth()});
     return RunResult::retry;
   }
   if (response.status_code != 200) {
     release();
     log(Level::warning, "forwarder", "delivery_deferred",
-        "backend_http_status=" + std::to_string(response.status_code));
+        "backend_http_status=" + std::to_string(response.status_code),
+        LogContext{store_.queue_depth()});
     return response.status_code == 401 || response.status_code == 403
                ? RunResult::authentication_failure
                : RunResult::retry;
@@ -262,7 +266,8 @@ Forwarder::RunResult Forwarder::drain_once(http::Client &client) {
     decisions = parse_decisions(response.body, claimed);
   } catch (const std::exception &) {
     release();
-    log(Level::error, "forwarder", "delivery_deferred", "invalid_batch_response");
+    log(Level::error, "forwarder", "delivery_deferred", "invalid_batch_response",
+        LogContext{store_.queue_depth()});
     return RunResult::retry;
   }
   try {
@@ -281,7 +286,8 @@ Forwarder::RunResult Forwarder::drain_once(http::Client &client) {
     }
   }
   log(Level::info, "forwarder", "batch_applied",
-      "confirmed=" + std::to_string(confirmed) + " quarantined=" + std::to_string(quarantined));
+      "confirmed=" + std::to_string(confirmed) + " quarantined=" + std::to_string(quarantined),
+      LogContext{store_.queue_depth()});
   return RunResult::delivered;
 }
 
@@ -291,7 +297,8 @@ void Forwarder::start(http::Client &client) {
   }
   client_ = &client;
   stopping_.store(false);
-  worker_ = std::thread([this] {
+  RetryBackoff backoff;
+  worker_ = std::thread([this, backoff = std::move(backoff)]() mutable {
     while (!stopping_.load()) {
       RunResult result = RunResult::retry;
       try {
@@ -299,10 +306,29 @@ void Forwarder::start(http::Client &client) {
       } catch (const std::exception &) {
         log(Level::error, "forwarder", "storage_error", "queue_outcome_update_failed");
       }
-      const auto delay = result == RunResult::idle                     ? std::chrono::seconds(1)
-                         : result == RunResult::retry                  ? std::chrono::seconds(5)
-                         : result == RunResult::authentication_failure ? std::chrono::seconds(30)
-                                                                       : std::chrono::seconds(0);
+      std::chrono::milliseconds delay{0};
+      if (result == RunResult::retry) {
+        delay = backoff.next_delay();
+      } else if (result == RunResult::authentication_failure) {
+        backoff.next_delay();
+        delay = std::chrono::seconds(30);
+      } else {
+        backoff.reset();
+        if (result == RunResult::idle) {
+          delay = std::chrono::seconds(1);
+        }
+      }
+      if (result == RunResult::retry || result == RunResult::authentication_failure) {
+        try {
+          LogContext context;
+          context.queue_depth = store_.queue_depth();
+          context.retry_in_ms = delay.count();
+          context.consecutive_failures = backoff.consecutive_failures();
+          log(Level::warning, "forwarder", "retry_scheduled", "backend retry scheduled", context);
+        } catch (const std::exception &) {
+          log(Level::error, "forwarder", "storage_error", "cannot_read_queue_depth");
+        }
+      }
       std::unique_lock<std::mutex> lock(wait_mutex_);
       wake_.wait_for(lock, delay, [&] { return stopping_.load(); });
     }

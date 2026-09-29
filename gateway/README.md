@@ -30,7 +30,8 @@ gateway job runs the same build and tests on Ubuntu 24.04. The tests check
 configuration failures, SIGTERM exit, SQLite migration and restart recovery,
 transactional queue claims, authenticated MQTT intake, and HTTP delivery
 against a localhost backend stub. They cover mixed backend outcomes, transient
-HTTP failure, restart recovery, and malformed responses. They do not establish
+HTTP failure, automatic recovery without a gateway restart, restart recovery,
+bounded retry delays, and malformed responses. They do not establish
 delivery against a deployed backend, ESP32 hardware behavior, or power-loss
 recovery.
 
@@ -106,8 +107,28 @@ timeout. The worker checks the full ordered response before changing any row:
 move rows with their reason into `quarantined_events` in the same transaction.
 Incomplete, mismatched, or unsupported responses leave every row pending.
 Transport errors and non-200 responses also keep rows pending. The worker waits
-5 seconds after a retryable failure, or 30 seconds after HTTP 401/403; these are
-prototype delays without jitter.
+between half and all of an exponentially growing 2, 4, 8, 16, then 30-second
+cap after successive failures. It resets the delay after delivery succeeds or
+the queue becomes empty. HTTP 401/403 waits 30 seconds. Every `message_stored`,
+`delivery_deferred`, `retry_scheduled`, and `batch_applied` log reports the queue
+depth; retry logs also report the chosen delay in milliseconds. libcurl opens a
+new connection on each attempt, so restored backend service is used without a
+gateway restart.
+The prototype does not yet use `Retry-After` response headers.
+
+To demonstrate a full one-minute outage against the actual backend and
+PostgreSQL, build the gateway and run the isolated Compose demo from the
+repository root:
+
+```sh
+python3 gateway/tests/demo_backend_outage.py --gateway gateway/build/gateway --outage-seconds 60
+```
+
+The demo provisions temporary MQTT credentials and a separate Compose project,
+stops its backend for 60–120 seconds, publishes six events while the gateway
+continues running, restarts the backend, and checks that the queue drains and
+PostgreSQL contains exactly six unique event rows. It removes its own containers
+and volumes after the check. Docker Compose and the built gateway are required.
 
 On startup, the gateway migrates older `intake_events` tables in place, giving
 existing rows `pending` and zero attempts while preserving payloads and original
@@ -129,7 +150,7 @@ python3 -c 'import sqlite3,sys; source=sqlite3.connect(sys.argv[1]); target=sqli
 Check a suspect database with `python3 -c 'import sqlite3,sys; db=sqlite3.connect(sys.argv[1]); print(db.execute("PRAGMA quick_check").fetchone()[0])' /var/lib/iemp-gateway/queue.sqlite3`.
 Keep the database and its WAL files for diagnosis if the check fails; there is
 no automatic repair path. This prototype has no queue or quarantine capacity
-limit, retry jitter, or storage pressure controls yet.
+limit or storage pressure controls yet.
 
 The stored MQTT payload retains its original `schema_version` and device
 content. MQTT QoS 1 acknowledges broker delivery, not a gateway SQLite commit;

@@ -299,6 +299,15 @@ Store::InsertResult Store::insert(const telemetry::Event &event) {
   return duplicate ? InsertResult::duplicate : InsertResult::identity_conflict;
 }
 
+std::int64_t Store::queue_depth() const {
+  const std::lock_guard<std::mutex> lock(mutex_);
+  Statement statement(db_, "SELECT COUNT(*) FROM intake_events");
+  if (sqlite3_step(statement.get()) != SQLITE_ROW) {
+    throw std::runtime_error("cannot count SQLite queue rows");
+  }
+  return sqlite3_column_int64(statement.get(), 0);
+}
+
 std::int64_t Store::pending_count() const {
   const std::lock_guard<std::mutex> lock(mutex_);
   Statement statement(db_, "SELECT COUNT(*) FROM intake_events WHERE queue_state='pending'");

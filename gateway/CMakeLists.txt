@@ -17,6 +17,7 @@ add_executable(gateway
   src/log.cpp
   src/intake.cpp
   src/forwarder.cpp
+  src/retry_backoff.cpp
   src/http/client.cpp
   src/mqtt/client.cpp
   src/telemetry/event.cpp
@@ -36,6 +37,7 @@ if(BUILD_TESTING)
   add_executable(gateway_store_test
     tests/test_store.cpp
     src/forwarder.cpp
+    src/retry_backoff.cpp
     src/log.cpp
     src/sqlite/store.cpp
   )
@@ -65,7 +67,7 @@ if(BUILD_TESTING)
   add_test(NAME gateway_http_delivery
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_forwarder_http.py
             $<TARGET_FILE:gateway> ${MOSQUITTO_BROKER_EXECUTABLE}
-            ${MOSQUITTO_PASSWD_EXECUTABLE})
+            ${MOSQUITTO_PASSWD_EXECUTABLE} ${MOSQUITTO_PUB_EXECUTABLE})
 endif()
 
 install(TARGETS gateway RUNTIME DESTINATION bin)

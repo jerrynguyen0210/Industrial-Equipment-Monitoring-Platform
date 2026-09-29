@@ -31,7 +31,7 @@ void Intake::receive(std::string_view topic, std::string_view payload, bool reta
                                " sequence_number=" + std::to_string(event.sequence_number);
   switch (result) {
   case sqlite::Store::InsertResult::inserted:
-    log(Level::info, "intake", "message_stored", identity);
+    log(Level::info, "intake", "message_stored", identity, LogContext{store_.queue_depth()});
     break;
   case sqlite::Store::InsertResult::duplicate:
     log(Level::info, "intake", "message_duplicate", identity);

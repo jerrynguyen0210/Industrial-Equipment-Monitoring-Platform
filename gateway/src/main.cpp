@@ -98,7 +98,8 @@ int main(int argc, char **argv) {
     const auto pending_total = store->pending_count();
     gateway::log(gateway::Level::info, "queue", "pending_loaded",
                  std::to_string(loaded_count) + " of " + std::to_string(pending_total) +
-                     " pending rows loaded from SQLite");
+                     " pending rows loaded from SQLite",
+                 gateway::LogContext{store->queue_depth()});
     gateway::Intake intake(*store, gateway::utc_now);
     gateway::mqtt::Client client(config,
                                  [&](std::string_view topic, std::string_view payload,

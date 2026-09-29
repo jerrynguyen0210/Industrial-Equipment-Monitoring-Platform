@@ -44,6 +44,7 @@ public:
   void close();
   // Returns inserted only after the new row commits. Existing identity/content is immutable.
   InsertResult insert(const telemetry::Event &event);
+  std::int64_t queue_depth() const;
   std::int64_t pending_count() const;
   std::vector<QueuedEvent> load_pending(std::size_t limit) const;
   // Atomically marks persisted rows in flight and increments their claim count.

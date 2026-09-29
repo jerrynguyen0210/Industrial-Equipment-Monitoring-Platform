@@ -100,8 +100,8 @@ and queue capacity controls remain future work.
 
 - Use bounded exponential backoff with jitter and explicit network timeouts.
   Respect applicable server retry guidance while keeping attempts rate-limited.
-- Decide and document timing parameters; their exact values remain an open
-  implementation decision in the source documents.
+- Keep the prototype retry schedule documented with its 2-second initial cap,
+  30-second maximum cap, equal jitter, and reset after success or an empty queue.
 - Keep unconfirmed data durable when automatic retries are suspended. Attempt
   limits must not silently discard valid events.
 - Keep local MQTT intake and persistence operational during backend outages.
