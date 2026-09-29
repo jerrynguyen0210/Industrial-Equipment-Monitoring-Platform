@@ -1,4 +1,5 @@
 #include "gateway/config.hpp"
+#include "gateway/forwarder.hpp"
 #include "gateway/intake.hpp"
 #include "gateway/log.hpp"
 #include "gateway/mqtt/client.hpp"
@@ -90,6 +91,12 @@ int main(int argc, char **argv) {
     return 3;
   }
   try {
+    gateway::Forwarder forwarder(*store);
+    const auto loaded_count = forwarder.load_pending().size();
+    const auto pending_total = store->pending_count();
+    gateway::log(gateway::Level::info, "queue", "pending_loaded",
+                 std::to_string(loaded_count) + " of " + std::to_string(pending_total) +
+                     " pending rows loaded from SQLite");
     gateway::Intake intake(*store, gateway::utc_now);
     gateway::mqtt::Client client(config,
                                  [&](std::string_view topic, std::string_view payload,

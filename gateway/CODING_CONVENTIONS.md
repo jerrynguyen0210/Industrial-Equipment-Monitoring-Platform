@@ -1,8 +1,8 @@
 # Gateway Coding Conventions
 
 Development rules for device connectivity, durable edge buffering, protocol
-translation, and backend forwarding. The native service foundation and lifecycle
-checks and MQTT intake exist; HTTP forwarding and end-to-end event delivery remain future work.
+translation, and backend forwarding. The native service, MQTT intake, and durable
+local queue exist; HTTP forwarding and end-to-end event delivery remain future work.
 
 ## 1. Scope and shared rules
 

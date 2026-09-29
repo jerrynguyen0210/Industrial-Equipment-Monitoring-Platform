@@ -92,7 +92,9 @@ class MqttIntakeTests(unittest.TestCase):
         )
         for stream in (self.gateway_process.stdout, self.gateway_process.stderr):
             threading.Thread(target=self.collect_logs, args=(stream,), daemon=True).start()
+        pending_loaded = self.wait_for("pending_loaded")
         self.wait_for("subscribed")
+        return pending_loaded
 
     def collect_logs(self, stream):
         for line in stream:
@@ -144,6 +146,14 @@ class MqttIntakeTests(unittest.TestCase):
                 ("device-demo-001", "mqtt-local-demo-1", sequence_number),
             ).fetchone()
 
+    def queue_metadata(self, sequence_number):
+        with sqlite3.connect(self.database) as connection:
+            return connection.execute(
+                "SELECT queue_state, attempt_count FROM intake_events "
+                "WHERE device_id=? AND boot_id=? AND sequence_number=?",
+                ("device-demo-001", "mqtt-local-demo-1", sequence_number),
+            ).fetchone()
+
     def test_original_receipt_and_rejections(self):
         sample = Path(__file__).resolve().parents[2] / "infra/mosquitto/sample-event.json"
         valid = sample.read_text()
@@ -151,6 +161,7 @@ class MqttIntakeTests(unittest.TestCase):
         self.wait_for("message_stored")
         payload, received_at = self.row(0)
         self.assertEqual(payload, valid)
+        self.assertEqual(self.queue_metadata(0), ("pending", 0))
         self.assertRegex(received_at, r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$")
         self.assertNotIn("gateway_received_at", json.loads(payload))
 
@@ -200,10 +211,15 @@ class MqttIntakeTests(unittest.TestCase):
         self.publish(precise)
         self.wait_for("message_stored")
         self.assertEqual(self.row(1)[0], precise)
+        self.assertEqual(self.queue_metadata(1), ("pending", 0))
 
-        self.stop_gateway()
-        self.assertEqual(self.gateway_process.returncode, 0)
-        self.start_gateway()
+        # The stored log is emitted after SQLite commit. A hard process exit
+        # must leave both rows available to the restarted gateway.
+        self.gateway_process.kill()
+        self.gateway_process.wait(timeout=5)
+        pending_loaded = self.start_gateway()
+        self.assertIn("2 of 2 pending rows", pending_loaded["message"])
+        self.assertEqual(self.queue_metadata(0), ("pending", 0))
         self.publish(valid)
         self.wait_for("message_duplicate")
         self.assertEqual(self.row(0), (payload, received_at))

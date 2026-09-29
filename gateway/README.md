@@ -4,9 +4,9 @@ The gateway is a C++17 Linux process for Raspberry Pi and other Linux hosts. It
 loads an explicit configuration file, validates settings, opens a local SQLite
 database in WAL mode with full synchronous durability, subscribes to MQTT
 `equipment/+/telemetry` at QoS 1, validates device messages, and persists accepted
-messages. It emits JSON logs and closes MQTT and SQLite on SIGTERM or SIGINT.
-HTTP batch forwarding is **not implemented yet**; stored readings do not reach the
-backend through this process.
+messages in a durable SQLite queue. It emits JSON logs and closes MQTT and
+SQLite on SIGTERM or SIGINT. HTTP batch forwarding is **not implemented yet**;
+stored readings do not reach the backend through this process.
 
 ## Build and test
 
@@ -26,10 +26,11 @@ Run those commands from the repository root. A production build can omit Python
 with `-DBUILD_TESTING=OFF` at configure time. `cmake --install gateway/build
 --prefix /usr/local` installs the executable to `/usr/local/bin/gateway`. The CI
 gateway job runs the same build and tests on Ubuntu 24.04. The tests check
-configuration failures, SIGTERM exit, SQLite integrity, and authenticated MQTT
-intake against a temporary broker with topic ACLs. They cover valid, malformed,
-duplicate, conflicting, and forged messages. They do not establish HTTP
-forwarding, ESP32 hardware behavior, or power-loss recovery.
+configuration failures, SIGTERM exit, SQLite migration and restart recovery,
+transactional queue claims, and authenticated MQTT intake against a temporary
+broker with topic ACLs. They cover valid, malformed, duplicate, conflicting,
+and forged messages. They do not establish HTTP forwarding, ESP32 hardware
+behavior, or power-loss recovery.
 
 ## Configuration and run
 
@@ -74,17 +75,50 @@ Rejections log a safe reason without the payload.
 
 On the first valid delivery for `(device_id, boot_id, sequence_number)`, the
 gateway writes the **original MQTT JSON bytes** and its own UTC
-`gateway_received_at` into SQLite `intake_events` in one autocommit insert.
+`gateway_received_at` into SQLite `intake_events` in an explicit transaction.
 `gateway_received_at` is captured when the MQTT callback starts, never read from
 device JSON. An identical byte-for-byte retry keeps the first payload and time.
 A changed payload with the same identity logs `identity_conflict` and leaves the
 first row intact. Byte-for-byte comparison is intentionally conservative: a
 reformatted but otherwise equivalent JSON retry is also treated as a conflict.
 
+## Durable queue and recovery
+
+`intake_events` has a unique primary key on `(device_id, boot_id,
+sequence_number)`. Each new row starts in `pending` with `attempt_count = 0`.
+The insert commits before intake logs `message_stored`. The forwarder boundary
+reads only SQLite rows; it cannot forward an event directly from an MQTT
+callback. A future delivery worker can atomically claim up to 500 persisted
+`pending` rows, changing them to `in_flight` and incrementing `attempt_count`
+before any network call. A failed attempt can release the matching claim back
+to `pending`. The attempt count measures claims; no HTTP attempts occur yet.
+Transactions contain only local database work.
+
+On startup, the gateway migrates older `intake_events` tables in place, giving
+existing rows `pending` and zero attempts while preserving payloads and original
+receipt times. It returns abandoned `in_flight` rows to `pending` without
+resetting their attempt counts, reads an initial batch of up to 500 pending
+rows, and logs `pending_loaded` with that batch size and the total queue depth.
+Later batches remain in SQLite for the future worker. This queue is designed
+for one gateway process per database; do not point two running instances at
+the same `QUEUE_DB_PATH`.
+
+To back up a queue, stop the service or use Python's SQLite backup API while it
+is running. Use a new destination file. For example, with the service stopped:
+
+```sh
+python3 -c 'import sqlite3,sys; source=sqlite3.connect(sys.argv[1]); target=sqlite3.connect(sys.argv[2]); source.backup(target); target.close(); source.close()' /var/lib/iemp-gateway/queue.sqlite3 /safe/location/queue-backup.sqlite3
+```
+
+Check a suspect database with `python3 -c 'import sqlite3,sys; db=sqlite3.connect(sys.argv[1]); print(db.execute("PRAGMA quick_check").fetchone()[0])' /var/lib/iemp-gateway/queue.sqlite3`.
+Keep the database and its WAL files for diagnosis if the check fails; there is
+no automatic repair path. This prototype has no queue capacity limit, backend
+acknowledgement handling, quarantine, or retry timing yet.
+
 The stored MQTT payload still contains `schema_version`; future HTTP forwarding
 must validate and transform it for the backend contract without changing device
-content or the original receipt time. The intake table is not yet capacity
-bounded. MQTT QoS 1 acknowledges broker delivery, not a gateway SQLite commit;
+content or the original receipt time. MQTT QoS 1 acknowledges broker delivery,
+not a gateway SQLite commit;
 an event is locally recoverable only after its insert commits. Do not treat this
 increment as an end-to-end delivery guarantee.
 
@@ -112,10 +146,11 @@ SIGTERM and waits for the normal close path.
 | --- | --- |
 | `src/config.cpp` | Load and validate process settings. |
 | `src/log.cpp` | JSON lifecycle and error logs. |
-| `src/sqlite/` | SQLite connection ownership, WAL setup, and intake rows. |
+| `src/sqlite/` | SQLite connection, schema migration, and durable queue operations. |
 | `src/mqtt/` | Authenticated MQTT subscription and callback lifecycle. |
 | `src/telemetry/` | Topic and JSON contract validation. |
 | `src/intake.cpp` | Gateway receipt timestamp and intake decisions. |
+| `src/forwarder.cpp` | Persisted-row reader and claim boundary for future delivery. |
 | `include/gateway/http/` | Future batch submission boundary. |
 
 The [gateway conventions](CODING_CONVENTIONS.md),

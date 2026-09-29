@@ -15,6 +15,7 @@ add_executable(gateway
   src/config.cpp
   src/log.cpp
   src/intake.cpp
+  src/forwarder.cpp
   src/mqtt/client.cpp
   src/telemetry/event.cpp
   src/sqlite/store.cpp
@@ -30,6 +31,20 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
+  add_executable(gateway_store_test
+    tests/test_store.cpp
+    src/forwarder.cpp
+    src/sqlite/store.cpp
+  )
+  target_compile_features(gateway_store_test PRIVATE cxx_std_17)
+  set_target_properties(gateway_store_test PROPERTIES CXX_EXTENSIONS OFF)
+  target_include_directories(gateway_store_test PRIVATE include)
+  target_link_libraries(gateway_store_test PRIVATE SQLite::SQLite3 Threads::Threads)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(gateway_store_test PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Werror)
+  endif()
+  add_test(NAME gateway_store COMMAND gateway_store_test)
+
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
   find_program(MOSQUITTO_BROKER_EXECUTABLE mosquitto)
   find_program(MOSQUITTO_PUB_EXECUTABLE mosquitto_pub)
