@@ -39,10 +39,22 @@ esp_err_t app_config_load(app_config_t *out) {
     return ESP_ERR_INVALID_ARG;
   }
 
+  if (CONFIG_IEMP_MQTT_HOST[0] == '\0' || strlen(CONFIG_IEMP_MQTT_HOST) > 253) {
+    ESP_LOGE(TAG, "invalid_config field=mqtt_host");
+    return ESP_ERR_INVALID_ARG;
+  }
+  if (CONFIG_IEMP_MQTT_PASSWORD[0] == '\0') {
+    ESP_LOGE(TAG, "invalid_config field=mqtt_password");
+    return ESP_ERR_INVALID_ARG;
+  }
+
   *out = (app_config_t){
       .device_id = CONFIG_IEMP_DEVICE_ID,
       .wifi_ssid = CONFIG_IEMP_WIFI_SSID,
       .wifi_password = CONFIG_IEMP_WIFI_PASSWORD,
+      .mqtt_host = CONFIG_IEMP_MQTT_HOST,
+      .mqtt_port = CONFIG_IEMP_MQTT_PORT,
+      .mqtt_password = CONFIG_IEMP_MQTT_PASSWORD,
   };
   return ESP_OK;
 }

@@ -20,6 +20,24 @@ menu "Industrial Equipment Monitoring firmware"
             Set with menuconfig. The resulting local sdkconfig is ignored by Git.
             Use 8 through 63 bytes. Never commit this value.
 
+    config IEMP_MQTT_HOST
+        string "Local Mosquitto LAN hostname or IPv4 address"
+        default ""
+        help
+            Use the broker's LAN address, not localhost on the ESP32.
+
+    config IEMP_MQTT_PORT
+        int "Local Mosquitto port"
+        range 1 65535
+        default 1883
+
+    config IEMP_MQTT_PASSWORD
+        string "Device-specific Mosquitto password"
+        default ""
+        help
+            Provisioned for the account named by the registered device ID.
+            The local broker is unencrypted; use it only on a trusted lab LAN.
+
     config IEMP_SENSOR_GPIO
         int "DS18B20 1-Wire data GPIO"
         range 0 33
@@ -27,6 +45,20 @@ menu "Industrial Equipment Monitoring firmware"
         help
             Connect the externally powered DS18B20 DQ pin here, with a 4.7 kOhm
             pull-up from DQ to 3.3 V. GPIO 4 is the ESP32-DevKitC default.
+
+    config IEMP_DEMO_SYNTHETIC_SENSOR
+        bool "Demo-only synthetic temperature (no DS18B20 required)"
+        default n
+        help
+            Publishes an invented constant value using the frozen valid-reading
+            contract. Use only with a dedicated demo device identity. This
+            payload cannot identify the reading as synthetic to subscribers.
+
+    config IEMP_DEMO_TEMPERATURE_CENTICELSIUS
+        int "Demo temperature (hundredths of a Celsius degree)"
+        depends on IEMP_DEMO_SYNTHETIC_SENSOR
+        range -5500 12500
+        default 2500
 
     config IEMP_SAMPLE_INTERVAL_MS
         int "Temperature sampling interval (milliseconds)"

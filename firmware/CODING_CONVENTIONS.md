@@ -2,7 +2,7 @@
 
 Development rules for sensor acquisition, device identity, telemetry, and device
 connectivity. The startup project, identity host tests, and DS18B20 sampling
-component are in place; device telemetry publishing remains future work.
+component and device telemetry publisher are in place.
 
 ## 1. Scope and shared rules
 
@@ -55,6 +55,8 @@ component are in place; device telemetry publishing remains future work.
   finite readings within the selected sensor's documented range as valid telemetry.
 - Distinguish zero from missing or failed measurements. Never substitute zero, a
   random value, or a previous sample and present it as a new valid measurement.
+- The opt-in synthetic demo mode is an explicit exception for an unwired lab
+  board. Use a dedicated demo identity; its frozen v1 payload cannot label source.
 - The approved v1 reading contract accepts `quality.reading = valid`. The full
   disconnected-sensor and invalid-reading payload is still an open contract item;
   implement its required explicit status through the agreed status contract when

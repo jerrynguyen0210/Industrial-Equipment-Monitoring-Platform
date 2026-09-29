@@ -9,6 +9,7 @@
 #include "identity.h"
 #include "nvs_flash.h"
 #include "sampling.h"
+#include "telemetry.h"
 #include "wifi_station.h"
 
 static const char *TAG = "firmware";
@@ -40,16 +41,14 @@ void app_main(void) {
            s_identity.boot_id, s_identity.next_sequence, (int)esp_reset_reason(),
            esp_app_get_description()->version);
 
-  // Sensor sampling starts independently of Wi-Fi provisioning and reconnects.
-  err = sampling_start();
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "startup_failed stage=sampling error=%s", esp_err_to_name(err));
-  }
-
   app_config_t config;
   err = app_config_load(&config);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "startup_failed stage=config error=%s", esp_err_to_name(err));
+    err = sampling_start();
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "startup_failed stage=sampling error=%s", esp_err_to_name(err));
+    }
     return;
   }
   ESP_LOGI(TAG, "config_ready device_id=%s", config.device_id);
@@ -57,9 +56,16 @@ void app_main(void) {
   err = iemp_wifi_station_start(&config);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "startup_failed stage=wifi error=%s", esp_err_to_name(err));
-    return;
+  } else {
+    err = telemetry_start(&config, &s_identity);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "startup_failed stage=telemetry error=%s", esp_err_to_name(err));
+    }
   }
 
-  // The identity remains available for the telemetry component added later.
-  // A sequence is allocated only when an event is created, never on reconnect.
+  // The sensor schedule does not depend on MQTT or Wi-Fi reconnection state.
+  err = sampling_start();
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "startup_failed stage=sampling error=%s", esp_err_to_name(err));
+  }
 }

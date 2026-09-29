@@ -4,8 +4,9 @@ This ESP-IDF 5.5 project targets an ESP32-DevKitC-compatible board with a
 standard ESP32, onboard flash, and a USB serial connection. It validates local
 configuration, commits a new boot identity to NVS, starts a sequence counter at
 zero, joins a WPA2/WPA3 Wi-Fi network, and samples one DS18B20 temperature probe.
-The probe is not installed yet. Until it is wired, firmware logs an explicit
-sensor error every sample period. It does not publish MQTT telemetry yet.
+The probe is not installed yet. Until it is wired, normal mode logs an explicit
+sensor error every sample period. An opt-in demo mode publishes a fixed synthetic
+temperature for a board without the probe.
 
 ## Layout
 
@@ -17,6 +18,7 @@ sensor error every sample period. It does not publish MQTT telemetry yet.
 | `components/wifi/` | Wi-Fi station setup and connection state logs. |
 | `components/temperature_sensor/` | DS18B20 and 1-Wire integration, value validation. |
 | `components/sampling/` | Periodic reads and valid/error serial logs. |
+| `components/telemetry/` | Schema v1 JSON, clock quality, queue, and MQTT publisher. |
 | `tests/` | Host tests for boot IDs, sequences, and sensor error handling. |
 
 ## Configure, build, and flash
@@ -31,13 +33,19 @@ idf.py -p /dev/ttyUSB0 flash monitor
 ```
 
 Under **Industrial Equipment Monitoring firmware**, set a registered device ID,
-the 2.4 GHz Wi-Fi SSID, and its WPA2/WPA3 passphrase. The device ID must be one
-MQTT topic level, 1–128 bytes, with no `/`, `+`, `#`, or control characters. The
+the 2.4 GHz Wi-Fi SSID, its WPA2/WPA3 passphrase, the broker's LAN address, and
+the device-specific MQTT password. The MQTT username is the device ID. Provision
+the account and write ACL using [the topic contract](../docs/mqtt-topic-contract.md).
+The device ID must be one MQTT topic level, 1–128 bytes, with no `/`, `+`, `#`,
+or control characters. The
 SSID must be 1–32 bytes and the passphrase 8–63 bytes. The checked-in
 `sdkconfig.defaults` only sets the ESP32 target. `idf.py menuconfig` writes the
 values to `sdkconfig`, which is ignored by Git. Keep the generated firmware image
 private: compile-time credentials are embedded in it. The Wi-Fi driver uses RAM
-configuration rather than copying those credentials into NVS.
+configuration rather than copying those credentials into NVS. The local Mosquitto
+port defaults to 1883. Set `MQTT_BIND_ADDRESS` to the broker host's LAN address
+for a real ESP32; `localhost` on the board does not reach the Compose broker.
+The local MQTT listener is unencrypted and suitable only for a trusted lab LAN.
 
 The **DS18B20 1-Wire data GPIO** defaults to GPIO 4 and the **Temperature sampling
 interval** defaults to 5000 ms. Sampling runs independently of Wi-Fi, so sensor
@@ -46,6 +54,14 @@ manager downloads pinned versions of
 [Espressif's DS18B20 driver](https://components.espressif.com/components/espressif/ds18b20/versions/0.4.0/readme)
 and [1-Wire bus driver](https://components.espressif.com/components/espressif/onewire_bus/versions/1.1.0/readme)
 on the first build.
+
+For the current unwired board, enable **Demo-only synthetic temperature** in
+`idf.py menuconfig` and set **Demo temperature** (default `2500`, meaning 25.00°C).
+This publishes one constant event every five seconds without starting the sensor
+driver. Serial logs say `sensor_state=synthetic_demo`. Use a dedicated demo device
+ID and registered broker account: the frozen telemetry JSON has no synthetic
+provenance field, so gateway and dashboard consumers see a `valid` temperature.
+Disable the mode and wire the DS18B20 before using readings as physical evidence.
 
 Without a host ESP-IDF install, use the pinned official container from
 `firmware/` for both configuration and build:
@@ -74,8 +90,8 @@ resets the counter and breaks that continuity, so preserve NVS during updates.
 
 The event sequence starts at **0** on every boot and can issue values through
 `INT64_MAX`. The next allocation then fails; it never wraps. Wi-Fi reconnects
-do not change either identity. The identity context remains in RAM for future
-event creation. No event is allocated by the current firmware.
+do not change either identity. Every valid sensor reading allocates one sequence.
+A full queue can cause a logged sequence gap; a reconnect does not reset it.
 
 Serial output should contain `identity_ready boot_id=... sequence_next=0`,
 `config_ready device_id=...`, then `state=starting`, `state=connecting`, and finally
@@ -96,16 +112,27 @@ configuration. [The DS18B20 datasheet](https://www.analog.com/media/en/technical
 specifies a -55°C to +125°C measurement range and a 750 ms maximum conversion
 time at its default 12-bit resolution.
 
-The sampling task begins immediately after boot identity is ready. Every five
-seconds by default it asks the physical probe for a new conversion, checks the
-driver result (including scratchpad CRC and the unconverted power-on value), and
-accepts only finite values within the sensor's range. A successful read logs
+The sampling task starts during boot, independently of later Wi-Fi and MQTT
+reconnects. Every five seconds by default it asks the physical probe for a new
+conversion. It checks the driver result (including scratchpad CRC and the
+unconverted power-on value) and accepts only finite values within the sensor's
+range. A successful read logs
 `sensor_state=valid temperature_c=...`. A missing probe logs
 `sensor_state=error reason=disconnected`; CRC, invalid-value, and bus failures
 have distinct reasons. Invalid samples never log a numeric temperature and are
 never treated as a valid reading. The task tries again next period, so the probe
-can be connected later without a firmware reboot. This firmware has no MQTT
-publisher, so neither valid nor invalid samples reach the dashboard yet.
+can be connected later without a firmware reboot. In normal mode, each valid
+sample becomes one JSON event at QoS 1, without retain, on
+`equipment/{device_id}/telemetry`.
+`measured_at` is `null` with `quality.clock=unsynchronised` until SNTP confirms
+the clock. After synchronization it contains UTC measurement time and the clock
+quality is `synchronised`. Reconnect retries preserve the original event bytes.
+
+The publisher retains one pending event and up to 32 further readings in RAM.
+It retries an unacknowledged event after 20 seconds and on reconnect. A full
+queue drops the new reading and logs `telemetry_dropped`; reboot loses RAM events.
+QoS 1 may deliver duplicates. Broker acknowledgement confirms broker receipt,
+not gateway or backend persistence.
 
 The dashboard currently displays stored telemetry, which can come from the
 simulator. It marks missing readings as unavailable and explains that live sensor
@@ -132,12 +159,24 @@ gcc -std=gnu11 -Wall -Wextra -Werror \
   firmware/components/temperature_sensor/temperature_sensor.c \
   firmware/tests/test_temperature_sensor.c -o /tmp/iemp-firmware-test-temperature
 /tmp/iemp-firmware-test-temperature
+gcc -std=c11 -Wall -Wextra -Werror -pedantic \
+  -I firmware/components/identity/include \
+  -I firmware/components/telemetry/include \
+  firmware/components/identity/identity.c \
+  firmware/components/telemetry/telemetry_encoding.c \
+  firmware/tests/test_telemetry_encoding.c -o /tmp/iemp-firmware-test-telemetry
+/tmp/iemp-firmware-test-telemetry
 ```
 
-Hardware validation requires a board, USB serial access, a DS18B20, and valid
-Wi-Fi credentials. First observe `reason=disconnected` with DQ unplugged. After
+Physical-sensor validation requires a board, USB serial access, a DS18B20, and
+valid Wi-Fi credentials. First observe `reason=disconnected` with DQ unplugged. After
 wiring, compare logged values against a trusted thermometer at stable ambient
 temperature; then disconnect DQ and confirm the next sample reports an error
 without a numeric temperature. Record the board revision, probe, wiring,
 ESP-IDF version, firmware commit, serial port, and two boot logs.
-See [Firmware Coding Conventions](CODING_CONVENTIONS.md) for future telemetry work.
+Subscribe with the gateway credential at QoS 1 to `equipment/+/telemetry` before
+powering the board. Verify one valid event every five seconds, with the same boot
+ID and increasing sequence. Reconnect Wi-Fi and check that both continue; reboot
+and check for a new boot ID and sequence zero. In normal mode a missing probe
+must yield no temperature event; in synthetic demo mode it should keep publishing
+the configured constant. See [Firmware Coding Conventions](CODING_CONVENTIONS.md).

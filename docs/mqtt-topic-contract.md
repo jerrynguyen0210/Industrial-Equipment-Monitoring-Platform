@@ -1,8 +1,9 @@
 # Local MQTT telemetry topic contract
 
 This is the prototype device-to-gateway transport on the local Mosquitto broker.
-The native gateway subscribes and persists validated MQTT readings. Firmware MQTT
-clients are not implemented yet. The Python simulator can publish as a device;
+The native gateway subscribes and persists validated MQTT readings. ESP32 firmware
+publishes physical DS18B20 readings or an explicitly enabled synthetic demo value,
+and the Python simulator can publish as a device;
 the broker, credentials, ACLs, sample event, and executable Compose check
 establish the shared interface. See
 [the simulator guide](../simulator/README.md) and

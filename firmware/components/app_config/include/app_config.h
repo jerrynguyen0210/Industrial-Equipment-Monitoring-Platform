@@ -6,6 +6,9 @@ typedef struct {
   const char *device_id;
   const char *wifi_ssid;
   const char *wifi_password;
+  const char *mqtt_host;
+  int mqtt_port;
+  const char *mqtt_password;
 } app_config_t;
 
 // Pointers refer to compile-time sdkconfig strings and remain valid for the boot.
