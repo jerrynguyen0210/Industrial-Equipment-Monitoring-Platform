@@ -127,9 +127,9 @@ lag. A missing PUBACK or transport failure stops later publishes and exits `1`;
 the affected reading remains unconfirmed. Ctrl+C exits `130`. There is no automatic
 retry or durable queue. Replay the exact same configuration and run ID to retain
 the original event identities and immutable content; QoS 1 can deliver duplicates.
-Broker PUBACK confirms broker receipt only. The native gateway is currently
-unavailable, so the authenticated gateway subscription is the simulator's
-transport acceptance boundary.
+Broker PUBACK confirms broker receipt only. When testing MQTT mode by itself,
+the authenticated gateway subscription is only a transport check. Run the native
+gateway as well to verify SQLite intake, HTTP forwarding, and backend persistence.
 
 ## Send generated batches over HTTP
 

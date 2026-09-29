@@ -133,14 +133,15 @@ telemetry retention are outside this bootstrap. Monitor Docker disk usage with
 Gateway C++17/SQLite and ESP-IDF firmware remain native workstreams. Neither is
 built or started by Compose, and there are no privileged containers or device
 mounts. Keep the gateway database on the gateway's persistent local filesystem,
-outside this Compose project's volumes. Native gateway build and run commands
-are in the [gateway guide](../gateway/README.md); firmware setup remains future work.
+outside this Compose project's volumes. Follow the
+[hardware setup guide](../Setup_Guide/02-hardware-and-gateway.md) for wiring,
+build, configuration, and validation.
 
 For a gateway process on the same computer, configure MQTT at `127.0.0.1:1883`
 and the backend base URL at `http://127.0.0.1:8000`. The native gateway MQTT
-client subscribes and stores valid readings locally; HTTP forwarding is not yet
-implemented. Use the generated `gateway-demo-001` MQTT credential for subscribing
-and a separate backend bearer token for future HTTP ingestion. The
+client subscribes, stores valid readings locally, and forwards HTTP batches.
+Use the generated `gateway-demo-001` MQTT credential for subscribing and a
+separate backend bearer token for HTTP ingestion. The
 [topic contract](../docs/mqtt-topic-contract.md) defines device
 publish and gateway subscribe behavior.
 

@@ -2,6 +2,10 @@
 
 Shared architecture, interface contracts, project decisions, and operating guides.
 
+For an installation sequence covering the software stack, physical hardware,
+operations, and customer release requirements, use the
+[Setup and deployment guide](../Setup_Guide/README.md).
+
 ## Project reference documents
 
 - [Requirements specification](Industrial_Equipment_Monitoring_Requirements.pdf):

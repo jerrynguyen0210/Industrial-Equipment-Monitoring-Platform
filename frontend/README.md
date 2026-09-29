@@ -19,8 +19,8 @@ not report live sensor connection state, and stored values may come from the
 simulator. Service Status displays backend/database
 readiness. History queries the [backend history API](../docs/history-api.md),
 plots measurement-time points with visible gaps, and lets operators switch
-between UTC and local display. Alert evaluation is not implemented; active alert
-counts are shown as unavailable.
+between UTC and local display. The backend stores prototype alert episodes; the
+dashboard's alert card is a standalone sample and does not display live alert state.
 
 From the repository root, provision local MQTT credentials once, then build and
 start Compose:

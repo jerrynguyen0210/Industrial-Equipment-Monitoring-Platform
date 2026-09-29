@@ -6,15 +6,13 @@ gateway and backend, and presenting equipment status in a monitoring interface.
 ## Project status
 
 The local platform runs PostgreSQL, Mosquitto, a FastAPI health and telemetry API,
-and a React/TypeScript dashboard shell with Docker Compose. The dashboard has
-Overview (`/`) and Service Status (`/status`) routes and displays backend and
-database readiness. The [API-mode simulator](simulator/README.md) exercises
-authenticated batch ingestion, per-item outcomes, persistence and retries, with
-deterministic temperature profiles, seeded noise, sampling intervals and simulated
-reboots. The native C++17 gateway validates and queues MQTT readings for HTTP
-forwarding. The ESP32 firmware establishes Wi-Fi and a per-boot event identity,
-and is set to sample a DS18B20 temperature probe every five seconds by default.
-The probe has not been installed yet; device MQTT publishing remains future work.
+and a React/TypeScript dashboard with Docker Compose. The dashboard shows stored
+device readings, history, and service readiness. The native C++17 gateway
+validates MQTT readings, queues them in SQLite, and forwards HTTP batches to the
+backend. ESP32 firmware samples one DS18B20 probe and publishes valid readings;
+the probe still needs to be wired on each device. The
+[simulator](simulator/README.md) supplies repeatable virtual readings for tests.
+This remains a lab prototype; see the [setup and customer deployment guide](Setup_Guide/README.md).
 
 ## Repository structure
 
@@ -32,16 +30,18 @@ The probe has not been installed yet; device MQTT publishing remains future work
 Unit tests belong alongside the workstream they exercise. Shared fixtures and
 tests spanning multiple workstreams belong in `tests/`.
 
-## Planned data flow
+## Data flow
 
-The simulator publishes to local Mosquitto. The native gateway validates and
-queues MQTT readings in SQLite, then forwards HTTP batches to the backend. The
-firmware samples its physical probe into serial logs and does not publish
-telemetry yet. The frontend uses backend APIs, and the backend owns PostgreSQL
-access. Stopping the backend does not stop Mosquitto. See the
+The simulator or ESP32 publishes to local Mosquitto. The native gateway validates
+and queues MQTT readings in SQLite, then forwards HTTP batches to the backend.
+The frontend uses backend APIs, and the backend owns PostgreSQL access. Stopping
+the backend does not stop Mosquitto. See the
 [architecture references](docs/README.md).
 
 ## Getting started
+
+For a complete path from a new host through hardware validation and release
+planning, start with the [setup guide](Setup_Guide/README.md).
 
 From the repository root:
 
@@ -121,9 +121,10 @@ for dependency caching, failure handling, and local reproduction.
 
 ### Deployment
 
-This Compose stack is a local development environment. Deployed TLS, application
-authentication, device credentials, database migrations, and backup/restore
-automation remain future work. See the [local platform decision record](docs/local-platform.md).
+This Compose stack is a local development environment. Database migrations are
+implemented but run explicitly; deployed MQTT TLS, dashboard authentication,
+fleet provisioning, and backup/restore automation remain release gates. See the
+[customer deployment guide](Setup_Guide/04-customer-deployment.md).
 
 ## Contributing
 

@@ -25,8 +25,8 @@ and increments for each event. The pair is stable when retrying the same reading
 a wall-clock measurement time. Device messages omit `gateway_received_at`,
 `backend_received_at`, `gateway_id`, and `site_id`. The gateway checks that the
 payload `device_id` matches the topic, rejects gateway-owned fields, and stores
-its own `gateway_received_at` beside the original MQTT JSON. The future HTTP
-forwarder must remove the MQTT-only `schema_version` field and wrap events in the
+its own `gateway_received_at` beside the original MQTT JSON. The gateway's HTTP
+forwarder moves `schema_version` to the batch envelope and wraps events in the
 [HTTP telemetry-batch.v1 contract](telemetry-api-contract.md). Broker ACLs limit
 topics, but the gateway does not yet independently verify an authenticated
 topic/device mapping; the broker cannot inspect a JSON payload.
@@ -43,8 +43,9 @@ ignored `secrets/mosquitto/`. No working MQTT password is committed. The ACL in
 | `gateway-demo-001` | Read `equipment/+/telemetry` |
 | `health` | Read/write `_health/#` for broker health and isolated persistence checks |
 
-Anonymous clients cannot connect. Add a unique device username/password and an
-explicit write ACL rule when provisioning another device. MQTT credentials are
+Anonymous clients cannot connect. The current provisioner creates only the demo
+accounts; a new device requires extending its credential provisioning and adding
+an explicit write ACL rule. MQTT credentials are
 separate from the gateway's HTTP bearer token. The local listener has no TLS and
 is published only to loopback by default; use it only on a trusted development
 host or controlled lab network. A deployed broker needs authenticated TLS and
@@ -59,7 +60,7 @@ replay, and report changed immutable content as a conflict. This agrees with the
 [backend identity contract](telemetry-api-contract.md#persistence-retries-and-failure-boundary).
 A publisher's MQTT PUBACK confirms broker receipt; it does not confirm gateway
 SQLite commit, HTTP acceptance, or database durability. Those are separate
-boundaries for the future gateway implementation.
+boundaries in the implemented gateway path.
 
 Telemetry is an event stream: **never retain** messages on
 `equipment/{device_id}/telemetry`. A late subscriber must not mistake an old
