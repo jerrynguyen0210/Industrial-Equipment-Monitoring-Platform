@@ -15,7 +15,7 @@ prevent the other jobs from producing useful results.
 | Backend lint and tests | Hash-locked dependencies, Ruff lint/format, backend, simulator and shared QA fixture/CLI tests, and registry/telemetry/HTTP ingestion tests against PostgreSQL 17. Python lint also covers the simulator and all shared test scripts. | Python 3.13; 10 minutes. |
 | Frontend checks, tests, and build | `npm ci`, TypeScript and Prettier checks, `npm test`, production build. | Node.js 24; 10 minutes. |
 | Compose integration | Compose configuration validation and the isolated smoke suite against actual backend/frontend images, PostgreSQL, and Mosquitto. | Python 3.13 and Docker Compose; 20 minutes. |
-| Gateway build and lifecycle tests | clang-format 18 check, CMake Release build, and process tests for config failures, SIGTERM, and SQLite integrity. | Runner CMake, C++ compiler, SQLite headers, and Python 3; 10 minutes. |
+| Gateway build and intake tests | clang-format 18 check, CMake Release build, lifecycle tests, and authenticated MQTT intake against a temporary broker. | Runner CMake, C++ compiler, SQLite/Mosquitto/JSON headers, Python 3, and Mosquitto tools; 10 minutes. |
 
 Every install, lint, test, and build command must succeed. No check uses
 `continue-on-error`, suppresses an error exit code, or retries a failed suite.
@@ -23,17 +23,18 @@ Frontend tests run once with `vitest run`; an empty suite fails. Steps after a
 failure in the same job are skipped and the job stays failed. Other jobs continue.
 Job timeouts also prevent a hung build or test from being reported as successful.
 
-The gateway job installs SQLite development headers, builds the C++17 executable,
-and runs its lifecycle tests. These checks establish local startup and clean
-shutdown; MQTT intake, HTTP forwarding, and power-loss behavior remain untested
-because those features are not implemented.
+The gateway job installs native development headers and Mosquitto tools, builds
+the C++17 executable, and runs lifecycle and broker-backed intake tests. These
+checks cover local startup, clean shutdown, valid and invalid MQTT events, and
+receipt-time persistence. HTTP forwarding, hardware behavior, and power-loss
+recovery remain untested.
 
 ## Repeatability and caches
 
 - GitHub Actions are pinned to full commit SHAs. Runner OS and language major/minor
   versions are explicit. Python and Node dependency versions are committed in
   lockfiles; the native gateway uses the runner distribution's CMake, SQLite,
-  and clang-format 18 packages.
+  Mosquitto, JSON, and clang-format 18 packages.
 - Backend setup uses the built-in `setup-python` pip cache with both
   `backend/requirements.txt` and `backend/requirements-dev.txt` in the cache key.
   Each job still installs the development lockfile with `--require-hashes`.
@@ -103,6 +104,6 @@ and removes its own resources in `finally`. Job logs contain the test output.
 
 To require verification before merging, repository rulesets or branch protection
 must separately require `Backend lint and tests`, `Frontend checks, tests, and
-build`, `Compose integration`, and `Gateway build and lifecycle tests`.
+build`, `Compose integration`, and `Gateway build and intake tests`.
 Workflow files do not configure these repository settings, and
 failed checks do not undo a push that already happened.

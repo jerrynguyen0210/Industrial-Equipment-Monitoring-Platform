@@ -1,9 +1,10 @@
 # Local MQTT telemetry topic contract
 
 This is the prototype device-to-gateway transport on the local Mosquitto broker.
-The native gateway MQTT client and firmware MQTT clients are not implemented yet. The Python
-simulator can publish as a device; the broker, credentials, ACLs, sample event,
-and executable Compose check establish the shared interface. See
+The native gateway subscribes and persists validated MQTT readings. Firmware MQTT
+clients are not implemented yet. The Python simulator can publish as a device;
+the broker, credentials, ACLs, sample event, and executable Compose check
+establish the shared interface. See
 [the simulator guide](../simulator/README.md) and
 [the local broker runbook](../infra/README.md) for setup.
 
@@ -21,11 +22,13 @@ and executable Compose check establish the shared interface. See
 and increments for each event. The pair is stable when retrying the same reading.
 `measured_at` may be null when the device clock is not trustworthy; do not invent
 a wall-clock measurement time. Device messages omit `gateway_received_at`,
-`backend_received_at`, `gateway_id`, and `site_id`. A future gateway must verify
-the authenticated topic/device mapping, check that the payload `device_id`
-matches the topic, stamp `gateway_received_at` after intake, remove the MQTT-only
-`schema_version` field, and wrap events in the [HTTP telemetry-batch.v1 contract](telemetry-api-contract.md).
-The broker ACL limits topics, but it cannot inspect a JSON payload.
+`backend_received_at`, `gateway_id`, and `site_id`. The gateway checks that the
+payload `device_id` matches the topic, rejects gateway-owned fields, and stores
+its own `gateway_received_at` beside the original MQTT JSON. The future HTTP
+forwarder must remove the MQTT-only `schema_version` field and wrap events in the
+[HTTP telemetry-batch.v1 contract](telemetry-api-contract.md). Broker ACLs limit
+topics, but the gateway does not yet independently verify an authenticated
+topic/device mapping; the broker cannot inspect a JSON payload.
 
 ## Credentials and topic permissions
 

@@ -2,21 +2,21 @@
 
 The gateway is a C++17 Linux process for Raspberry Pi and other Linux hosts. It
 loads an explicit configuration file, validates settings, opens a local SQLite
-database in WAL mode with full synchronous durability, emits JSON lifecycle logs,
-and closes SQLite on SIGTERM or SIGINT. The MQTT and HTTP module interfaces are
-in `include/gateway/mqtt/` and `include/gateway/http/`; protocol connections,
-telemetry intake, queue records, and forwarding are **not implemented yet**. A
-running process therefore does not ingest or forward readings.
+database in WAL mode with full synchronous durability, subscribes to MQTT
+`equipment/+/telemetry` at QoS 1, validates device messages, and persists accepted
+messages. It emits JSON logs and closes MQTT and SQLite on SIGTERM or SIGINT.
+HTTP batch forwarding is **not implemented yet**; stored readings do not reach the
+backend through this process.
 
 ## Build and test
 
-Install a C++17 compiler, CMake 3.16+, SQLite development headers, Python 3 for
-the lifecycle test, and clang-format 18 for the formatting check. On Raspberry Pi
-OS/Debian or Ubuntu:
+Install a C++17 compiler, CMake 3.16+, SQLite and libmosquitto development
+headers, nlohmann JSON headers, Python 3, Mosquitto broker/client tools for the
+integration test, and clang-format 18. On Raspberry Pi OS/Debian or Ubuntu:
 
 ```sh
-sudo apt-get install cmake g++ libsqlite3-dev python3 clang-format-18
-clang-format-18 --dry-run --Werror gateway/src/*.cpp gateway/src/sqlite/*.cpp gateway/include/gateway/*.hpp gateway/include/gateway/*/*.hpp
+sudo apt-get install cmake g++ libsqlite3-dev libmosquitto-dev nlohmann-json3-dev python3 mosquitto mosquitto-clients clang-format-18
+clang-format-18 --dry-run --Werror gateway/src/*.cpp gateway/src/*/*.cpp gateway/include/gateway/*.hpp gateway/include/gateway/*/*.hpp
 cmake -S gateway -B gateway/build -DCMAKE_BUILD_TYPE=Release
 cmake --build gateway/build --parallel 2
 ctest --test-dir gateway/build --output-on-failure
@@ -25,10 +25,11 @@ ctest --test-dir gateway/build --output-on-failure
 Run those commands from the repository root. A production build can omit Python
 with `-DBUILD_TESTING=OFF` at configure time. `cmake --install gateway/build
 --prefix /usr/local` installs the executable to `/usr/local/bin/gateway`. The CI
-gateway job runs the same build and lifecycle test on Ubuntu 24.04. The test
-checks configuration failures, shell override precedence, SIGTERM exit, file
-permissions, retained SQLite data, and SQLite integrity after restart. It does
-not establish MQTT delivery, HTTP forwarding, or power-loss recovery.
+gateway job runs the same build and tests on Ubuntu 24.04. The tests check
+configuration failures, SIGTERM exit, SQLite integrity, and authenticated MQTT
+intake against a temporary broker with topic ACLs. They cover valid, malformed,
+duplicate, conflicting, and forged messages. They do not establish HTTP
+forwarding, ESP32 hardware behavior, or power-loss recovery.
 
 ## Configuration and run
 
@@ -36,8 +37,9 @@ Copy [.env.example](.env.example) to an ignored local file such as
 `gateway/.env`. Provision the broker credential using
 `python infra/mosquitto/provision.py` from the repository root, and replace
 `GATEWAY_API_KEY` with a separate token registered in the backend's
-`GATEWAY_CREDENTIALS_JSON`. These credentials are validated now but unused until
-the protocol clients are implemented. Never place them in version control.
+`GATEWAY_CREDENTIALS_JSON`. The MQTT credential is used for subscription. The API
+credential is validated but unused until HTTP forwarding is implemented. Never
+place either credential in version control.
 
 ```sh
 cp gateway/.env.example gateway/.env
@@ -61,10 +63,40 @@ writable by the service account. Newly created database and WAL files use
 owner-only permissions. Existing file permissions are not changed. A missing
 parent directory causes a clear storage error at startup.
 
-Send SIGTERM to stop the process. The process waits for the signal, closes its
+## MQTT intake and receipt semantics
+
+The gateway subscribes at QoS 1 and validates one JSON object per message. It
+requires schema version 1, the documented event and quality fields and types,
+finite numeric `value`, and a `device_id` matching the topic. It rejects unknown
+fields, duplicate JSON keys, retained messages, payloads over 16 KiB, and
+messages that contain `gateway_received_at` or other gateway-owned fields.
+Rejections log a safe reason without the payload.
+
+On the first valid delivery for `(device_id, boot_id, sequence_number)`, the
+gateway writes the **original MQTT JSON bytes** and its own UTC
+`gateway_received_at` into SQLite `intake_events` in one autocommit insert.
+`gateway_received_at` is captured when the MQTT callback starts, never read from
+device JSON. An identical byte-for-byte retry keeps the first payload and time.
+A changed payload with the same identity logs `identity_conflict` and leaves the
+first row intact. Byte-for-byte comparison is intentionally conservative: a
+reformatted but otherwise equivalent JSON retry is also treated as a conflict.
+
+The stored MQTT payload still contains `schema_version`; future HTTP forwarding
+must validate and transform it for the backend contract without changing device
+content or the original receipt time. The intake table is not yet capacity
+bounded. MQTT QoS 1 acknowledges broker delivery, not a gateway SQLite commit;
+an event is locally recoverable only after its insert commits. Do not treat this
+increment as an end-to-end delivery guarantee.
+
+Send SIGTERM to stop the process. The process stops MQTT callbacks, closes its
 SQLite handle, logs `stopped`, and exits with status 0. Startup/configuration and
 storage errors exit nonzero. Each log line has UTC `timestamp`, `level`,
 `component`, `event`, and `message` fields. Credential values are not logged.
+`ready` means the process has started; `subscribed` confirms the broker granted
+the QoS 1 telemetry subscription.
+The MQTT client currently uses unencrypted TCP with a password; use it only on
+the local development host or a controlled lab network. Deployed TLS support is
+still required.
 
 For systemd, see [gateway.service.example](gateway.service.example). Create the
 `iemp-gateway` service account, install the config at
@@ -80,8 +112,10 @@ SIGTERM and waits for the normal close path.
 | --- | --- |
 | `src/config.cpp` | Load and validate process settings. |
 | `src/log.cpp` | JSON lifecycle and error logs. |
-| `src/sqlite/` | SQLite connection ownership, WAL and durability setup. |
-| `include/gateway/mqtt/` | Future authenticated subscription boundary. |
+| `src/sqlite/` | SQLite connection ownership, WAL setup, and intake rows. |
+| `src/mqtt/` | Authenticated MQTT subscription and callback lifecycle. |
+| `src/telemetry/` | Topic and JSON contract validation. |
+| `src/intake.cpp` | Gateway receipt timestamp and intake decisions. |
 | `include/gateway/http/` | Future batch submission boundary. |
 
 The [gateway conventions](CODING_CONVENTIONS.md),

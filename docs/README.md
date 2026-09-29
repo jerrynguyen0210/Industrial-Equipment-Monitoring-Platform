@@ -45,7 +45,7 @@ persistence, matching retries and mixed per-item rejections over HTTP.
 The [Windows Docker testing guide](docker-testing.md) gives PowerShell commands
 for automated smoke tests, registry acceptance, and manual database inspection.
 The [CI guide](ci.md) documents automatic verification on every push and pull
-request, dependency caches, the gateway build and lifecycle checks, and local reproduction.
+request, dependency caches, the gateway build and MQTT intake checks, and local reproduction.
 
 - System architecture and workstream boundaries.
 - Device telemetry schemas, gateway protocols, and backend API contracts.

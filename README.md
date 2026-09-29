@@ -11,9 +11,9 @@ Overview (`/`) and Service Status (`/status`) routes and displays backend and
 database readiness. The [API-mode simulator](simulator/README.md) exercises
 authenticated batch ingestion, per-item outcomes, persistence and retries, with
 deterministic temperature profiles, seeded noise, sampling intervals and simulated
-reboots. The native gateway has a C++17 service foundation with config,
-SQLite startup, logging, and graceful shutdown; MQTT/HTTP data handling and
-firmware remain separate implementation workstreams.
+reboots. The native C++17 gateway now validates MQTT readings and stores them in
+SQLite with a gateway receipt timestamp. HTTP forwarding and firmware remain
+separate implementation workstreams.
 
 ## Repository structure
 
@@ -33,9 +33,9 @@ tests spanning multiple workstreams belong in `tests/`.
 
 ## Planned data flow
 
-Devices (or the simulator) publish to local Mosquitto. The native gateway is
-planned to buffer readings in SQLite and forward HTTP batches to the backend;
-that data path is not implemented yet. The frontend
+Devices (or the simulator) publish to local Mosquitto. The native gateway
+validates and stores MQTT readings in SQLite. Forwarding HTTP batches to the
+backend is not implemented yet. The frontend
 uses backend APIs; the backend owns PostgreSQL access. Stopping the backend does
 not stop Mosquitto. See the [architecture references](docs/README.md).
 
@@ -114,7 +114,7 @@ and the workstream READMEs for unit, formatting, and build checks. The
 [local platform workflow](.github/workflows/local-platform.yml) runs these checks
 on every push and pull request, alongside backend lint/tests and frontend
 formatting/type checks, component tests, and a production build. The native
-gateway build and lifecycle test run in CI. See the [CI guide](docs/ci.md)
+gateway build and MQTT intake tests run in CI. See the [CI guide](docs/ci.md)
 for dependency caching, failure handling, and local reproduction.
 
 ### Deployment

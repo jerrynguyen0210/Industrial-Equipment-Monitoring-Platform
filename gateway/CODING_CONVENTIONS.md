@@ -2,7 +2,7 @@
 
 Development rules for device connectivity, durable edge buffering, protocol
 translation, and backend forwarding. The native service foundation and lifecycle
-checks exist; protocol clients and durable event delivery remain future work.
+checks and MQTT intake exist; HTTP forwarding and end-to-end event delivery remain future work.
 
 ## 1. Scope and shared rules
 

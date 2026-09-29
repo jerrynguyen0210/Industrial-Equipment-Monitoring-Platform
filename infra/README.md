@@ -138,9 +138,10 @@ are in the [gateway guide](../gateway/README.md); firmware setup remains future 
 
 For a gateway process on the same computer, configure MQTT at `127.0.0.1:1883`
 and the backend base URL at `http://127.0.0.1:8000`. The native gateway MQTT
-client is not implemented yet. Use the generated `gateway-demo-001` MQTT
-credential for subscribing and a separate backend bearer token for HTTP
-ingestion. The [topic contract](../docs/mqtt-topic-contract.md) defines device
+client subscribes and stores valid readings locally; HTTP forwarding is not yet
+implemented. Use the generated `gateway-demo-001` MQTT credential for subscribing
+and a separate backend bearer token for future HTTP ingestion. The
+[topic contract](../docs/mqtt-topic-contract.md) defines device
 publish and gateway subscribe behavior.
 
 For an ESP32 or Raspberry Pi on a trusted lab LAN, set `MQTT_BIND_ADDRESS` in

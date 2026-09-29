@@ -4,6 +4,8 @@
 #include <ctime>
 #include <iomanip>
 #include <iostream>
+#include <mutex>
+#include <sstream>
 #include <string>
 
 namespace gateway {
@@ -57,17 +59,25 @@ std::string_view level_name(Level level) {
 
 } // namespace
 
-void log(Level level, std::string_view component, std::string_view event,
-         std::string_view message) {
+std::string utc_now() {
   const auto now = std::chrono::system_clock::now();
   const auto milliseconds =
       std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
   const std::time_t seconds = std::chrono::system_clock::to_time_t(now);
   std::tm utc{};
   gmtime_r(&seconds, &utc);
+  std::ostringstream result;
+  result << std::put_time(&utc, "%Y-%m-%dT%H:%M:%S") << '.' << std::setw(3) << std::setfill('0')
+         << milliseconds.count() << 'Z';
+  return result.str();
+}
+
+void log(Level level, std::string_view component, std::string_view event,
+         std::string_view message) {
+  static std::mutex output_mutex;
+  const std::lock_guard<std::mutex> lock(output_mutex);
   std::ostream &output = level == Level::error ? std::cerr : std::cout;
-  output << "{\"timestamp\":\"" << std::put_time(&utc, "%Y-%m-%dT%H:%M:%S") << '.' << std::setw(3)
-         << std::setfill('0') << milliseconds.count() << "Z\",\"level\":\"" << level_name(level)
+  output << "{\"timestamp\":\"" << utc_now() << "\",\"level\":\"" << level_name(level)
          << "\",\"component\":\"" << escape(component) << "\",\"event\":\"" << escape(event)
          << "\",\"message\":\"" << escape(message) << "\"}" << std::endl;
 }

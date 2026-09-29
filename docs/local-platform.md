@@ -11,12 +11,12 @@ The backend exposes health and authenticated telemetry ingestion endpoints, and
 the frontend displays health. This makes container startup and browser-to-API-to-
 database connectivity reviewable. The backend also includes a
 [minimum persisted registry](registry.md), explicit Alembic migrations, and a demo
-seed command. The native gateway service foundation exists; its MQTT intake and
-HTTP forwarding, and platform alerts, remain unimplemented. No demo
+seed command. The native gateway MQTT intake exists; HTTP forwarding and platform
+alerts remain unimplemented. No demo
 readings are inserted during ordinary stack startup.
 
 The backend depends on PostgreSQL only. It does not consume device MQTT; the
-native C++ gateway is intended to own MQTT intake, SQLite buffering, and batch forwarding.
+native C++ gateway owns MQTT intake and SQLite buffering; batch forwarding remains future work.
 Mosquitto has no application dependency and remains running during a backend
 outage. Firmware and gateway lifecycles, hardware access, and queue files stay
 outside Compose. A full-stack shutdown intentionally stops the development broker.

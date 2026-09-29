@@ -1,25 +1,30 @@
 #pragma once
 
+#include "gateway/config.hpp"
+
 #include <functional>
-#include <string>
+#include <memory>
 #include <string_view>
 
 namespace gateway::mqtt {
 
-struct Message {
-  std::string topic;
-  std::string payload;
-  bool retained = false;
-};
-
-// Future MQTT adapters deliver messages through this boundary. The service does
-// not instantiate one until authenticated intake and durable persistence exist.
 class Client {
 public:
-  virtual ~Client() = default;
-  virtual void subscribe(std::string_view topic,
-                         std::function<void(const Message &)> on_message) = 0;
-  virtual void stop() = 0;
+  using OnMessage =
+      std::function<void(std::string_view topic, std::string_view payload, bool retained)>;
+
+  Client(const Config &config, OnMessage on_message);
+  ~Client();
+  Client(const Client &) = delete;
+  Client &operator=(const Client &) = delete;
+
+  void start();
+  void stop();
+  bool failed() const;
+
+private:
+  struct Impl;
+  std::unique_ptr<Impl> impl_;
 };
 
 } // namespace gateway::mqtt
