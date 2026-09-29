@@ -93,8 +93,11 @@ class MqttIntakeTests(unittest.TestCase):
             stderr=subprocess.PIPE,
             text=True,
         )
+        self.log_threads = []
         for stream in (self.gateway_process.stdout, self.gateway_process.stderr):
-            threading.Thread(target=self.collect_logs, args=(stream,), daemon=True).start()
+            thread = threading.Thread(target=self.collect_logs, args=(stream,), daemon=True)
+            thread.start()
+            self.log_threads.append(thread)
         pending_loaded = self.wait_for("pending_loaded")
         self.wait_for("subscribed")
         return pending_loaded
@@ -135,6 +138,10 @@ class MqttIntakeTests(unittest.TestCase):
             except subprocess.TimeoutExpired:
                 self.gateway_process.kill()
                 self.gateway_process.wait(timeout=5)
+        for thread in self.log_threads:
+            thread.join(timeout=5)
+        for stream in (self.gateway_process.stdout, self.gateway_process.stderr):
+            stream.close()
 
     def stop_broker(self):
         if self.broker_process.poll() is None:
@@ -157,14 +164,17 @@ class MqttIntakeTests(unittest.TestCase):
                 ("device-demo-001", "mqtt-local-demo-1", sequence_number),
             ).fetchone()
 
-    def wait_pending(self, sequence_number, timeout=6):
+    def wait_pending(self, sequence_number, minimum_attempts, timeout=6):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             metadata = self.queue_metadata(sequence_number)
-            if metadata and metadata[0] == "pending":
+            if metadata and metadata[0] == "pending" and metadata[1] >= minimum_attempts:
                 return metadata
             time.sleep(0.05)
-        self.fail(f"event {sequence_number} did not return to pending")
+        self.fail(
+            f"event {sequence_number} did not return to pending "
+            f"after {minimum_attempts} attempts"
+        )
 
     def test_original_receipt_and_rejections(self):
         sample = Path(__file__).resolve().parents[2] / "infra/mosquitto/sample-event.json"
@@ -229,9 +239,10 @@ class MqttIntakeTests(unittest.TestCase):
         # must leave both rows available to the restarted gateway.
         self.gateway_process.kill()
         self.gateway_process.wait(timeout=5)
+        self.stop_gateway()
         pending_loaded = self.start_gateway()
         self.assertIn("2 of 2 pending rows", pending_loaded["message"])
-        self.assertGreaterEqual(self.wait_pending(0)[1], 1)
+        self.wait_pending(0, minimum_attempts=1)
         self.publish(valid)
         self.wait_for("message_duplicate")
         self.assertEqual(self.row(0), (payload, received_at))
