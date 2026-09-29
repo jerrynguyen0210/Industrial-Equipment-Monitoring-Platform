@@ -48,6 +48,21 @@ esp_err_t app_config_load(app_config_t *out) {
     return ESP_ERR_INVALID_ARG;
   }
 
+#if CONFIG_IEMP_WEB_SENSOR_INPUT
+  const size_t web_key_length = strlen(CONFIG_IEMP_WEB_INPUT_KEY);
+  if (web_key_length < 8 || web_key_length > 63) {
+    ESP_LOGE(TAG, "invalid_config field=web_input_key");
+    return ESP_ERR_INVALID_ARG;
+  }
+  for (size_t index = 0; index < web_key_length; ++index) {
+    const unsigned char character = (unsigned char)CONFIG_IEMP_WEB_INPUT_KEY[index];
+    if (character < 0x21 || character > 0x7e) {
+      ESP_LOGE(TAG, "invalid_config field=web_input_key");
+      return ESP_ERR_INVALID_ARG;
+    }
+  }
+#endif
+
   *out = (app_config_t){
       .device_id = CONFIG_IEMP_DEVICE_ID,
       .wifi_ssid = CONFIG_IEMP_WIFI_SSID,
@@ -55,6 +70,11 @@ esp_err_t app_config_load(app_config_t *out) {
       .mqtt_host = CONFIG_IEMP_MQTT_HOST,
       .mqtt_port = CONFIG_IEMP_MQTT_PORT,
       .mqtt_password = CONFIG_IEMP_MQTT_PASSWORD,
+#if CONFIG_IEMP_WEB_SENSOR_INPUT
+      .web_input_key = CONFIG_IEMP_WEB_INPUT_KEY,
+#else
+      .web_input_key = NULL,
+#endif
   };
   return ESP_OK;
 }

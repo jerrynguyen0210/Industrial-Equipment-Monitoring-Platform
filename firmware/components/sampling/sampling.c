@@ -1,20 +1,21 @@
 #include "sampling.h"
 
-#include <ctype.h>
-#include <math.h>
 #include <stdio.h>
-#include <stdlib.h>
+#include <string.h>
 
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "sdkconfig.h"
 #include "telemetry.h"
+#include "temperature_input.h"
 #include "temperature_sensor.h"
 
+#if !CONFIG_IEMP_WEB_SENSOR_INPUT
 static const char *TAG = "sampling";
+#endif
 
-#if !CONFIG_IEMP_MANUAL_SENSOR_INPUT && !CONFIG_IEMP_DEMO_SYNTHETIC_SENSOR
+#if CONFIG_IEMP_DS18B20_SENSOR
 static const char *status_reason(temperature_sample_status_t status) {
   switch (status) {
   case TEMPERATURE_SAMPLE_DISCONNECTED:
@@ -34,23 +35,20 @@ static const char *status_reason(temperature_sample_status_t status) {
 
 #if CONFIG_IEMP_MANUAL_SENSOR_INPUT
 static void publish_typed_temperature(const char *line) {
-  char *end = NULL;
-  const float value = strtof(line, &end);
-  while (end != NULL && *end != '\0' && isspace((unsigned char)*end)) {
-    ++end;
-  }
-  if (end == line || end == NULL || *end != '\0' || !isfinite(value) || value < -55.0f ||
-      value > 125.0f) {
+  float value;
+  if (!temperature_input_parse(line, strlen(line), &value)) {
     ESP_LOGW(TAG, "sensor_input=rejected");
     return;
   }
   ESP_LOGI(TAG, "sensor_state=manual temperature_c=%.2f", (double)value);
-  telemetry_submit_temperature(value);
+  if (telemetry_submit_temperature(value) != ESP_OK) {
+    ESP_LOGW(TAG, "sensor_input=not_queued");
+  }
 }
 
 static void manual_input_task(void *arg) {
   (void)arg;
-  char line[48];
+  char line[IEMP_TEMPERATURE_INPUT_MAX_LENGTH + 1];
   size_t used = 0;
 
   ESP_LOGI(TAG, "sensor_input=ready range_c=-55..125");
@@ -94,7 +92,7 @@ static void manual_input_task(void *arg) {
 }
 #endif
 
-#if !CONFIG_IEMP_MANUAL_SENSOR_INPUT
+#if !CONFIG_IEMP_MANUAL_SENSOR_INPUT && !CONFIG_IEMP_WEB_SENSOR_INPUT
 static void sampling_task(void *arg) {
   (void)arg;
   const TickType_t period = pdMS_TO_TICKS(CONFIG_IEMP_SAMPLE_INTERVAL_MS);
@@ -138,12 +136,14 @@ static void sampling_task(void *arg) {
 #endif
 
 esp_err_t sampling_start(void) {
-#if CONFIG_IEMP_MANUAL_SENSOR_INPUT
-  const BaseType_t created =
-      xTaskCreate(manual_input_task, "sensor_input", 4096, NULL, 4, NULL);
+#if CONFIG_IEMP_WEB_SENSOR_INPUT
+  return ESP_ERR_NOT_SUPPORTED;
 #else
-  const BaseType_t created =
-      xTaskCreate(sampling_task, "temperature_sample", 4096, NULL, 4, NULL);
+#if CONFIG_IEMP_MANUAL_SENSOR_INPUT
+  const BaseType_t created = xTaskCreate(manual_input_task, "sensor_input", 4096, NULL, 4, NULL);
+#else
+  const BaseType_t created = xTaskCreate(sampling_task, "temperature_sample", 4096, NULL, 4, NULL);
 #endif
   return created == pdPASS ? ESP_OK : ESP_ERR_NO_MEM;
+#endif
 }

@@ -9,6 +9,7 @@ typedef struct {
   const char *mqtt_host;
   int mqtt_port;
   const char *mqtt_password;
+  const char *web_input_key;
 } app_config_t;
 
 // Pointers refer to compile-time sdkconfig strings and remain valid for the boot.

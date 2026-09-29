@@ -9,7 +9,9 @@
 #include "identity.h"
 #include "nvs_flash.h"
 #include "sampling.h"
+#include "sdkconfig.h"
 #include "telemetry.h"
+#include "web_input.h"
 #include "wifi_station.h"
 
 static const char *TAG = "firmware";
@@ -45,10 +47,12 @@ void app_main(void) {
   err = app_config_load(&config);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "startup_failed stage=config error=%s", esp_err_to_name(err));
+#if !CONFIG_IEMP_WEB_SENSOR_INPUT
     err = sampling_start();
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "startup_failed stage=sampling error=%s", esp_err_to_name(err));
     }
+#endif
     return;
   }
   ESP_LOGI(TAG, "config_ready device_id=%s", config.device_id);
@@ -60,12 +64,21 @@ void app_main(void) {
     err = telemetry_start(&config, &s_identity);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "startup_failed stage=telemetry error=%s", esp_err_to_name(err));
+    } else {
+#if CONFIG_IEMP_WEB_SENSOR_INPUT
+      err = web_input_start(&config);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "startup_failed stage=web_input error=%s", esp_err_to_name(err));
+      }
+#endif
     }
   }
 
+#if !CONFIG_IEMP_WEB_SENSOR_INPUT
   // The sensor schedule does not depend on MQTT or Wi-Fi reconnection state.
   err = sampling_start();
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "startup_failed stage=sampling error=%s", esp_err_to_name(err));
   }
+#endif
 }

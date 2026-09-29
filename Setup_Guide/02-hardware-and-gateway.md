@@ -169,7 +169,9 @@ require a host group change. In **Industrial Equipment Monitoring firmware** set
 | MQTT host/port | Reachable broker LAN address, port `1883` unless overridden. |
 | MQTT password | Contents of `secrets/mosquitto/device-demo-001.password`; username is the device ID. |
 | Sensor GPIO | GPIO 4 for the wiring above, or the actual selected pin. |
-| Synthetic sensor | **Off** for a physical reading. |
+| Temperature source | DS18B20 for physical monitoring; select web entry for an unwired lab demo. |
+| Web temperature entry key | Required only for web entry; a separate device-specific 8–63 character key without spaces. |
+| Synthetic source | Select only for a fixed-value lab demo. |
 
 The local `firmware/sdkconfig` and generated image contain credentials; protect
 them and do not commit or distribute them. Preserve the ESP32 NVS partition when
@@ -205,3 +207,8 @@ publishes a constant value that downstream consumers cannot distinguish from a
 physical measurement. Use a **separate demo identity**, keep the result out of
 customer acceptance evidence, and see the [firmware guide](../firmware/README.md)
 for its menuconfig setting.
+Alternatively, select web temperature entry and open `http://<ESP32-IP>/` after
+the serial log reports `state=connected ip=...`. Submit a Celsius value and the
+configured input key. A successful page response means the device queued the
+event; verify gateway and backend delivery as above. Use this plain-HTTP input
+only on a trusted lab network and a dedicated demo device identity.

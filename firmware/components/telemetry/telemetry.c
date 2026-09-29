@@ -214,14 +214,14 @@ fail:
   return err;
 }
 
-void telemetry_submit_temperature(float celsius) {
+esp_err_t telemetry_submit_temperature(float celsius) {
   if (s_readings == NULL || s_identity == NULL) {
-    return;
+    return ESP_ERR_INVALID_STATE;
   }
   queued_reading_t reading = {.celsius = celsius, .device_uptime_ms = esp_timer_get_time() / 1000};
   if (!identity_next_sequence(s_identity, &reading.sequence_number)) {
     ESP_LOGE(TAG, "telemetry_dropped reason=sequence_exhausted");
-    return;
+    return ESP_ERR_INVALID_STATE;
   }
   if (atomic_load(&s_clock_synchronised)) {
     struct timeval now;
@@ -240,5 +240,7 @@ void telemetry_submit_temperature(float celsius) {
   if (xQueueSend(s_readings, &reading, 0) != pdTRUE) {
     ESP_LOGW(TAG, "telemetry_dropped reason=queue_full sequence_number=%" PRId64,
              reading.sequence_number);
+    return ESP_ERR_NO_MEM;
   }
+  return ESP_OK;
 }

@@ -18,6 +18,8 @@ temperature for a board without the probe.
 | `components/wifi/` | Wi-Fi station setup and connection state logs. |
 | `components/temperature_sensor/` | DS18B20 and 1-Wire integration, value validation. |
 | `components/sampling/` | Periodic reads and valid/error serial logs. |
+| `components/temperature_input/` | Shared validation for typed Celsius values. |
+| `components/web_input/` | Optional ESP32-hosted temperature entry page. |
 | `components/telemetry/` | Schema v1 JSON, clock quality, queue, and MQTT publisher. |
 | `tests/` | Host tests for boot IDs, sequences, and sensor error handling. |
 
@@ -54,6 +56,30 @@ manager downloads pinned versions of
 [Espressif's DS18B20 driver](https://components.espressif.com/components/espressif/ds18b20/versions/0.4.0/readme)
 and [1-Wire bus driver](https://components.espressif.com/components/espressif/onewire_bus/versions/1.1.0/readme)
 on the first build.
+
+### Enter temperatures from a browser
+
+For a board without a probe, select **Temperature source → Enter temperatures on
+the ESP32 web page** in `idf.py menuconfig`. Set **Web temperature entry key** to
+a separate, device-specific key of 8–63 printable ASCII characters without
+spaces. Flash and monitor the board, then find `state=connected ip=...` in its
+serial log. On a computer or phone connected to the same Wi-Fi network, open
+`http://<that-ip>/`.
+Enter a Celsius value from **-55 through 125** and the input key, then submit.
+Each successful submission queues exactly one telemetry event; there is no
+periodic reading in this mode. The key is required for each submission; the page
+does not write it to browser storage. The page reports **queued** after the firmware
+accepts the reading into RAM; MQTT or backend delivery may occur later. If the RAM
+queue is full, the page reports that the queue is unavailable.
+
+This mode replaces the USB serial input for that build. To use serial entry
+again, select **Type a temperature on the USB serial console**. The physical
+probe and fixed synthetic modes are the other source choices. Because the
+existing telemetry contract has no manual-source field, downstream consumers
+see submitted readings as `valid` temperatures. Use a dedicated demo device ID
+and do not treat these readings as physical probe measurements. The ESP32 page
+uses plain HTTP; restrict it to a trusted lab Wi-Fi network. The input key and
+MQTT credentials are embedded in the firmware image, so keep it private.
 
 For the current unwired board, enable **Demo-only synthetic temperature** in
 `idf.py menuconfig` and set **Demo temperature** (default `2500`, meaning 25.00°C).
@@ -166,6 +192,12 @@ gcc -std=c11 -Wall -Wextra -Werror -pedantic \
   firmware/components/telemetry/telemetry_encoding.c \
   firmware/tests/test_telemetry_encoding.c -o /tmp/iemp-firmware-test-telemetry
 /tmp/iemp-firmware-test-telemetry
+gcc -std=c11 -Wall -Wextra -Werror -pedantic \
+  -I firmware/components/temperature_input/include \
+  firmware/components/temperature_input/temperature_input.c \
+  firmware/tests/test_temperature_input.c -lm \
+  -o /tmp/iemp-firmware-test-temperature-input
+/tmp/iemp-firmware-test-temperature-input
 ```
 
 Physical-sensor validation requires a board, USB serial access, a DS18B20, and
