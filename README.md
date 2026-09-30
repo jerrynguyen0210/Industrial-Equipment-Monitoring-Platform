@@ -26,6 +26,7 @@ This remains a lab prototype; see the [setup and customer deployment guide](Setu
 | [infra/](infra/README.md) | Local environment and deployment configuration. |
 | [docs/](docs/README.md) | Architecture, interface contracts, decisions, and runbooks. |
 | [tests/](tests/README.md) | Cross-workstream integration and end-to-end tests. |
+| [agents/](agents/README.md) | Autonomous, bounded setup tooling. |
 
 Unit tests belong alongside the workstream they exercise. Shared fixtures and
 tests spanning multiple workstreams belong in `tests/`.
@@ -42,6 +43,9 @@ the backend does not stop Mosquitto. See the
 
 For a complete path from a new host through hardware validation and release
 planning, start with the [setup guide](Setup_Guide/README.md).
+
+To have an OpenAI Codex setup agent run and verify the supported Linux lab
+installation independently, see the [setup agent](agents/setup_agent/README.md).
 
 From the repository root:
 
