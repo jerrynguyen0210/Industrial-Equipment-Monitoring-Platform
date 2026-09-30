@@ -4,6 +4,29 @@ Follow these documents in order. Commands use Bash on Linux unless a step says
 otherwise. Run repository commands from the repository root; run `idf.py` from
 `firmware/`.
 
+For a new 64-bit Raspberry Pi OS, Debian, or Ubuntu host, the automated lab
+installer performs step 1 (including Docker installation, credential
+provisioning, startup, migration, seeding, and health checks):
+
+```sh
+./Setup_Guide/install.sh
+```
+
+Run it as your normal user. It preserves existing configuration, credentials,
+volumes, and registry data when rerun. See
+[the lab installation procedure](01-lab-installation.md#automated-installation)
+for supported hosts and options.
+
+After connecting an ESP32 by USB, install the pinned compiler, configure the
+firmware on first use, build it, and flash the board with:
+
+```sh
+./Setup_Guide/compile-and-flash-esp32.sh --monitor
+```
+
+See [the hardware and gateway guide](02-hardware-and-gateway.md#automated-firmware-build-and-flash)
+for serial-port, configuration, and Linux permission details.
+
 | Step | Document | Outcome |
 | --- | --- | --- |
 | 1 | [Install and run the lab system](01-lab-installation.md) | Four Compose services, migrated database, and a working dashboard. |

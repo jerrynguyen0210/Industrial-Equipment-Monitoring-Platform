@@ -5,6 +5,34 @@ ESP32 are added in [step 2](02-hardware-and-gateway.md). Use the demo identities
 only on a controlled lab network; do not ingest customer production data. The
 committed PostgreSQL password and the MQTT transport are lab defaults.
 
+## Automated installation
+
+On a 64-bit Raspberry Pi 5 running Raspberry Pi OS, or a 64-bit Debian/Ubuntu
+host, run this from an existing repository checkout as your normal user:
+
+```sh
+./Setup_Guide/install.sh
+```
+
+The script installs Git, Python, Docker Engine, Buildx, and Docker Compose from
+Docker's official package repository when required. It then provisions local
+MQTT and gateway API credentials, builds and starts the four Compose services,
+applies migrations, seeds the demo registry, and checks service health. It does
+not print the generated credentials. Existing `.env` files, credentials,
+volumes, and database records are validated and reused, so the command is safe
+to rerun. The installer supports any other 64-bit Linux distribution when
+Python 3, Git, Docker Engine, and Compose v2.24+ are already installed:
+
+```sh
+./Setup_Guide/install.sh --skip-host-install
+```
+
+Use `--wait-timeout 300` on a slower Pi if containers need more time to become
+healthy. Run `./Setup_Guide/install.sh --help` for all options. The script sets
+up the local Compose platform only; continue with [step 2](02-hardware-and-gateway.md)
+to build the native gateway and configure ESP32 hardware. Services remain bound
+to loopback by default, including on a Pi.
+
 ## Prepare the host
 
 1. Install and start Docker Engine with the Compose plugin (Compose v2.24 or
