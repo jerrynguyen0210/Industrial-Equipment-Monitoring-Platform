@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "events": [
+    {
+      "device_id": "device-demo-001",
+      "boot_id": "simulator-vertical-slice-v1",
+      "sequence_number": 0,
+      "measured_at": "2026-09-19T00:30:00Z",
+      "device_uptime_ms": 1000,
+      "gateway_received_at": "2026-09-19T00:30:01Z",
+      "metric": "temperature",
+      "value": 31.4,
+      "unit": "celsius",
+      "quality": {"reading": "valid", "clock": "synchronised"}
+    }
+  ]
+}

@@ -1,0 +1,98 @@
+menu "Industrial Equipment Monitoring firmware"
+
+    config IEMP_DEVICE_ID
+        string "Registered device ID"
+        default ""
+        help
+            Device identity assigned in the backend registry. It must be one
+            MQTT topic level, at most 128 bytes, without /, +, or #.
+
+    config IEMP_WIFI_SSID
+        string "Wi-Fi SSID"
+        default ""
+        help
+            Set with menuconfig. The resulting local sdkconfig is ignored by Git.
+
+    config IEMP_WIFI_PASSWORD
+        string "Wi-Fi WPA2/WPA3 passphrase"
+        default ""
+        help
+            Set with menuconfig. The resulting local sdkconfig is ignored by Git.
+            Use 8 through 63 bytes. Never commit this value.
+
+    config IEMP_MQTT_HOST
+        string "Local Mosquitto LAN hostname or IPv4 address"
+        default ""
+        help
+            Use the broker's LAN address, not localhost on the ESP32.
+
+    config IEMP_MQTT_PORT
+        int "Local Mosquitto port"
+        range 1 65535
+        default 1883
+
+    config IEMP_MQTT_PASSWORD
+        string "Device-specific Mosquitto password"
+        default ""
+        help
+            Provisioned for the account named by the registered device ID.
+            The local broker is unencrypted; use it only on a trusted lab LAN.
+
+    config IEMP_SENSOR_GPIO
+        int "DS18B20 1-Wire data GPIO"
+        range 0 33
+        default 4
+        help
+            Connect the externally powered DS18B20 DQ pin here, with a 4.7 kOhm
+            pull-up from DQ to 3.3 V. GPIO 4 is the ESP32-DevKitC default.
+
+    choice IEMP_TEMPERATURE_SOURCE
+        prompt "Temperature source"
+        default IEMP_DS18B20_SENSOR
+
+        config IEMP_DS18B20_SENSOR
+            bool "DS18B20 temperature probe"
+
+        config IEMP_MANUAL_SENSOR_INPUT
+            bool "Type a temperature on the USB serial console"
+            help
+                Read one Celsius value per line from the serial console and
+                publish it. Accepted values are from -55 to 125.
+
+        config IEMP_WEB_SENSOR_INPUT
+            bool "Enter temperatures on the ESP32 web page"
+            help
+                Serve a local HTTP form on the ESP32's Wi-Fi IP address. Each
+                submitted Celsius value is published once as telemetry.
+
+        config IEMP_DEMO_SYNTHETIC_SENSOR
+            bool "Demo-only synthetic temperature (no DS18B20 required)"
+            help
+                Publishes an invented constant value using the frozen valid-reading
+                contract. Use only with a dedicated demo device identity. This
+                payload cannot identify the reading as synthetic to subscribers.
+    endchoice
+
+    config IEMP_WEB_INPUT_KEY
+        string "Web temperature entry key"
+        depends on IEMP_WEB_SENSOR_INPUT
+        default ""
+        help
+            Separate device-specific key entered in the web form for every
+            submission. Use 8-63 printable ASCII characters without spaces.
+            HTTP is unencrypted; use this mode only on a trusted lab Wi-Fi network.
+
+    config IEMP_DEMO_TEMPERATURE_CENTICELSIUS
+        int "Demo temperature (hundredths of a Celsius degree)"
+        depends on IEMP_DEMO_SYNTHETIC_SENSOR
+        range -5500 12500
+        default 2500
+
+    config IEMP_SAMPLE_INTERVAL_MS
+        int "Temperature sampling interval (milliseconds)"
+        range 2000 60000
+        default 5000
+        help
+            Time between the starts of sensor reads. The default is 5 seconds.
+
+endmenu

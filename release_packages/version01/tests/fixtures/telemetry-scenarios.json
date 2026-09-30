@@ -1,0 +1,114 @@
+{
+  "contract": "telemetry-batch.v1",
+  "fixture_version": 1,
+  "base_event": {
+    "device_id": "device-demo-001",
+    "boot_id": "assigned-by-runner",
+    "sequence_number": 0,
+    "measured_at": "2026-09-19T00:30:00Z",
+    "device_uptime_ms": 1000,
+    "gateway_received_at": "2026-09-19T00:30:01Z",
+    "metric": "temperature",
+    "value": 31.4,
+    "unit": "celsius",
+    "quality": {"reading": "valid", "clock": "synchronised"}
+  },
+  "scenarios": [
+    {
+      "name": "duplicate",
+      "purpose": "F02: replay exactly the same committed event; keep one row.",
+      "expected_rows": 1,
+      "steps": [
+        {"name": "original", "events": [{}], "expected": ["accepted"]},
+        {"name": "retry", "events": [{}], "expected": ["duplicate"]}
+      ]
+    },
+    {
+      "name": "identity-conflict",
+      "purpose": "F03: change immutable value under a committed identity; preserve the original.",
+      "expected_rows": 1,
+      "steps": [
+        {"name": "original", "events": [{}], "expected": ["accepted"]},
+        {"name": "conflict", "events": [{"value": 99}], "expected": ["rejected:identity_conflict"]},
+        {"name": "original-retry", "events": [{}], "expected": ["duplicate"]}
+      ]
+    },
+    {
+      "name": "invalid-unit",
+      "purpose": "F04: Fahrenheit is unsupported; v1 requires celsius.",
+      "expected_rows": 0,
+      "steps": [
+        {"name": "unsupported-unit", "events": [{"unit": "fahrenheit"}], "expected": ["rejected:invalid_unit"]}
+      ]
+    },
+    {
+      "name": "malformed-value",
+      "purpose": "F04: JSON strings, booleans, null, arrays and objects are not finite JSON numbers.",
+      "expected_rows": 0,
+      "steps": [
+        {
+          "name": "invalid-scalars",
+          "events": [
+            {"sequence_number": 0, "value": "31.4"},
+            {"sequence_number": 1, "value": true},
+            {"sequence_number": 2, "value": null},
+            {"sequence_number": 3, "value": "NaN"},
+            {"sequence_number": 4, "value": []},
+            {"sequence_number": 5, "value": {"temperature": 31.4}}
+          ],
+          "expected": [
+            "rejected:malformed_value", "rejected:malformed_value",
+            "rejected:malformed_value", "rejected:malformed_value",
+            "rejected:malformed_value", "rejected:malformed_value"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "unknown-device",
+      "purpose": "F04: a valid reading from an unregistered device cannot be stored.",
+      "expected_rows": 0,
+      "steps": [
+        {"name": "unregistered", "events": [{"device_id": "$unknown_device"}], "expected": ["rejected:unknown_device"]}
+      ]
+    },
+    {
+      "name": "stale-timestamp",
+      "purpose": "Historical ingestion: store an old synchronised measurement unchanged; no ingestion age cutoff is defined.",
+      "expected_rows": 1,
+      "steps": [
+        {"name": "historical", "events": [{"measured_at": "2000-01-01T00:00:00Z"}], "expected": ["accepted"]}
+      ]
+    },
+    {
+      "name": "out-of-order-sequence",
+      "purpose": "Historical ingestion: unique identities arriving in sequence order 12, 10, 11 are all stored.",
+      "expected_rows": 3,
+      "steps": [
+        {"name": "newer-first", "events": [{"sequence_number": 12, "device_uptime_ms": 12000, "measured_at": "2026-09-19T00:30:12Z", "gateway_received_at": "2026-09-19T00:30:13Z"}], "expected": ["accepted"]},
+        {"name": "older-later", "events": [{"sequence_number": 10, "device_uptime_ms": 10000, "measured_at": "2026-09-19T00:30:10Z", "gateway_received_at": "2026-09-19T00:30:11Z"}, {"sequence_number": 11, "device_uptime_ms": 11000, "measured_at": "2026-09-19T00:30:11Z", "gateway_received_at": "2026-09-19T00:30:12Z"}], "expected": ["accepted", "accepted"]}
+      ]
+    },
+    {
+      "name": "mixed-batch",
+      "purpose": "F05 / AT-06: ordered independent results; invalid neighbors do not prevent valid commits.",
+      "expected_rows": 3,
+      "steps": [
+        {"name": "original", "events": [{}], "expected": ["accepted"]},
+        {
+          "name": "mixed",
+          "events": [
+            {"sequence_number": 1, "value": 32},
+            {},
+            {"value": 99},
+            {"sequence_number": 2, "unit": "fahrenheit"},
+            {"sequence_number": 3, "value": "bad"},
+            {"sequence_number": 4, "device_id": "$unknown_device"},
+            {"sequence_number": 5, "value": -5}
+          ],
+          "expected": ["accepted", "duplicate", "rejected:identity_conflict", "rejected:invalid_unit", "rejected:malformed_value", "rejected:unknown_device", "accepted"]
+        }
+      ]
+    }
+  ]
+}

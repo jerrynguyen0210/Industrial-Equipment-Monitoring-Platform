@@ -1,0 +1,4 @@
+-r requirements.in
+httpx==0.28.1
+python-dotenv==1.2.3
+ruff==0.16.8
