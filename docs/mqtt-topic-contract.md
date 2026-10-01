@@ -1,75 +1,49 @@
-# Local MQTT telemetry topic contract
+# MQTT telemetry contract
 
-This is the prototype device-to-gateway transport on the local Mosquitto broker.
-The native gateway subscribes and persists validated MQTT readings. ESP32 firmware
-publishes physical DS18B20 readings or an explicitly enabled synthetic demo value,
-and the Python simulator can publish as a device;
-the broker, credentials, ACLs, sample event, and executable Compose check
-establish the shared interface. See
-[the simulator guide](../simulator/README.md) and
-[the local broker runbook](../infra/README.md) for setup.
+## Topic and message
 
-## Topic and payload
-
-| Item | Contract |
+| Item | Rule |
 | --- | --- |
-| Publish topic | `equipment/{device_id}/telemetry`, for example `equipment/device-demo-001/telemetry` |
+| Device topic | `equipment/{device_id}/telemetry` |
 | Gateway subscription | `equipment/+/telemetry` at QoS 1 |
-| Device ID | One nonempty, case-sensitive topic level matching the event's `device_id` and a registered device. No `/`, `+`, or `#`; use at most 128 characters. |
-| Message | One UTF-8 JSON object per reading, with `schema_version: 1` and the fields in [sample-event.json](../infra/mosquitto/sample-event.json). No array or HTTP batch envelope. |
-| Delivery | Device publishes at QoS 1; gateway subscribes at QoS 1. Do not set the retain flag. |
+| Device ID | One case-sensitive topic level, at most 128 characters; no `/`, `+`, or `#`. |
+| Message | One UTF-8 JSON event with `schema_version: 1`; no batch wrapper. |
+| Retain | Disabled. |
 
-`boot_id` identifies a device boot; `sequence_number` starts at zero for that boot
-and increments for each event. The pair is stable when retrying the same reading.
-`measured_at` may be null when the device clock is not trustworthy; do not invent
-a wall-clock measurement time. Device messages omit `gateway_received_at`,
-`backend_received_at`, `gateway_id`, and `site_id`. The gateway checks that the
-payload `device_id` matches the topic, rejects gateway-owned fields, and stores
-its own `gateway_received_at` beside the original MQTT JSON. The gateway's HTTP
-forwarder moves `schema_version` to the batch envelope and wraps events in the
-[HTTP telemetry-batch.v1 contract](telemetry-api-contract.md). Broker ACLs limit
-topics, but the gateway does not yet independently verify an authenticated
-topic/device mapping; the broker cannot inspect a JSON payload.
+The event shape is shown in
+[sample-event.json](../infra/mosquitto/sample-event.json). `boot_id` changes after
+a device reboot, and `sequence_number` starts at zero for each boot. A retry must
+keep the same identity and content.
 
-## Credentials and topic permissions
+Devices omit `gateway_received_at`, `backend_received_at`, `gateway_id`, and
+`site_id`. The gateway verifies that topic and payload Device IDs match, records
+its own receipt time, and wraps events in an HTTP batch.
 
-The provisioner generates local passwords and a hashed Mosquitto password file in
-ignored `secrets/mosquitto/`. No working MQTT password is committed. The ACL in
-[infra/mosquitto/acl](../infra/mosquitto/acl) grants:
+## Credentials
 
-| Username | Access |
-| --- | --- |
-| `device-demo-001` | Write only `equipment/device-demo-001/telemetry` |
-| `gateway-demo-001` | Read `equipment/+/telemetry` |
-| `health` | Read/write `_health/#` for broker health and isolated persistence checks |
+Dashboard registration creates a device-specific Mosquitto account and ACL:
 
-Anonymous clients cannot connect. The current provisioner creates only the demo
-accounts; a new device requires extending its credential provisioning and adding
-an explicit write ACL rule. MQTT credentials are
-separate from the gateway's HTTP bearer token. The local listener has no TLS and
-is published only to loopback by default; use it only on a trusted development
-host or controlled lab network. A deployed broker needs authenticated TLS and
-device-specific provisioning.
+- Username: Device ID.
+- Password: registration password.
+- Permission: write only its own telemetry topic.
 
-## QoS 1, duplicates, and retained messages
+The provisioner still creates `device-demo-001`, the read-only
+`gateway-demo-001` subscriber, and the `_health/#` account for initial setup and
+tests. Anonymous connections are rejected. The gateway MQTT password is separate
+from its backend bearer token.
 
-QoS 1 means **at least once** on each MQTT hop. A reconnect or lost acknowledgement
-can deliver the same reading again. Consumers must key an event by
-`(device_id, boot_id, sequence_number)`, preserve the original reading on matching
-replay, and report changed immutable content as a conflict. This agrees with the
-[backend identity contract](telemetry-api-contract.md#persistence-retries-and-failure-boundary).
-A publisher's MQTT PUBACK confirms broker receipt; it does not confirm gateway
-SQLite commit, HTTP acceptance, or database durability. Those are separate
-boundaries in the implemented gateway path.
+The local listener uses plaintext TCP and binds to loopback by default. Expose it
+only on a trusted lab LAN. Production requires authenticated TLS and managed
+device credential rotation.
 
-Telemetry is an event stream: **never retain** messages on
-`equipment/{device_id}/telemetry`. A late subscriber must not mistake an old
-reading for a new reading. The broker leaves retain support enabled for isolated
-`_health/` persistence checks, so the no-retain telemetry rule is a client
-contract, not a broker-enforced flag. If a prototype client previously retained
-telemetry, clear that topic by publishing a zero-byte message with retain set
-using its authorized device account, then resume non-retained publishing.
+## Delivery boundaries
 
-The [Mosquitto MQTT reference](https://mosquitto.org/man/mqtt-7.html) defines QoS 1
-and retained-message behavior. The [Mosquitto ACL reference](https://mosquitto.org/man/mosquitto-conf-5.html)
-documents the topic access rules used here.
+QoS 1 provides at-least-once delivery, so duplicates are expected. All consumers
+identify an event by `(device_id, boot_id, sequence_number)`. An identical replay
+is a duplicate; changed immutable content for the same identity is a conflict.
+
+An MQTT PUBACK confirms broker receipt only. It does not confirm gateway SQLite
+storage, backend acceptance, or PostgreSQL commit. Never retain telemetry because
+a late subscriber could treat an old message as current.
+
+See the [HTTP ingestion contract](telemetry-api-contract.md) for backend outcomes.

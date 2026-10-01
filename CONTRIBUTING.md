@@ -1,108 +1,60 @@
 # Contributing
 
-## Issues and task IDs
+## 1. Create or select an issue
 
-GitHub Issues are the source of truth for planned work. Use the task issue
-template to record the workstream, scope, acceptance criteria, and validation.
+GitHub Issues are the source of truth. The issue number becomes the work ID:
+`IEMP-<number>`; issue `#42` is `IEMP-42`.
 
-- An issue's canonical ID is `IEMP-<GitHub issue number>`, for example `IEMP-42`
-  for GitHub issue `#42`. Do not allocate a separate number sequence.
-- Create an issue with a descriptive title, for example
-  `[gateway] Buffer telemetry during disconnection`. Its ID is known once GitHub
-  creates it; the title does not need to repeat the ID.
-- For checklist tasks inside an issue, append `-T<number>`, for example
-  `IEMP-42-T1`. Start at `T1` within each issue and never renumber or reuse an ID.
-- If a task needs independent tracking, create a linked GitHub issue. It receives
-  its own `IEMP-<number>` ID; link it from the original checklist task.
-- Use canonical IDs in plans and commit subjects. Include GitHub references such
-  as `Refs #42` or `Closes #42` in pull request descriptions so GitHub links them.
-
-Example checklist for issue `#42`:
+For checklist work, append `-T<number>` without renumbering existing tasks:
 
 ```markdown
-- [ ] IEMP-42-T1: Define the telemetry payload contract.
-- [ ] IEMP-42-T2: Implement gateway forwarding.
-- [ ] IEMP-42-T3: Verify forwarding with simulator data.
+- [ ] IEMP-42-T1: Define the telemetry payload.
+- [ ] IEMP-42-T2: Implement forwarding.
 ```
 
-The initial repository bootstrap may omit an issue ID. Subsequent planned work
-should use an existing issue.
+Create a linked issue when a task needs its own tracking. The initial repository
+bootstrap is the only work that may omit an issue ID.
 
-## Branch convention
+## 2. Create a branch
 
-`main` is the integration branch. Use short-lived branches and pull requests for
-changes. Repository branch protection and CI must be configured separately.
+Use a short-lived branch based on `main`:
 
 ```text
-codex/<type>/iemp-<issue-number>-<short-description>
+codex/<type>/iemp-<issue>-<description>
 ```
 
-Use lowercase words separated by hyphens. Choose a type from the commit types
-below. Keep a branch focused on one issue; checklist tasks can share that branch.
+Example: `codex/feat/iemp-42-telemetry-ingestion`. Use lowercase words separated
+by hyphens and keep one issue per branch.
 
-Examples:
+## 3. Commit the change
+
+Use an imperative Conventional Commit subject:
 
 ```text
-codex/feat/iemp-42-telemetry-ingestion
-codex/fix/iemp-57-reconnect-backoff
-codex/docs/iemp-63-local-setup
+<type>(<scope>): <summary> [IEMP-42]
 ```
 
-For initial scaffolding only, `codex/chore/repository-bootstrap` is allowed.
+Example: `fix(firmware): retry failed sensor reads [IEMP-57]`.
 
-## Commit convention
+Types are `feat`, `fix`, `docs`, `refactor`, `test`, `perf`, `build`, `ci`,
+`chore`, and `revert`. Scopes are `firmware`, `gateway`, `backend`, `frontend`,
+`simulator`, `infra`, `docs`, `tests`, or `repo`. Mark a breaking change with
+`!` and a `BREAKING CHANGE:` footer.
 
-Use Conventional Commits with an imperative summary and the issue ID:
+## 4. Validate and open a pull request
 
-```text
-<type>(<scope>): <summary> [IEMP-<issue-number>]
-```
+1. Run the affected component checks.
+2. Update related setup, configuration, and contract documents.
+3. Reference the issue and list the commands and results used for validation.
+4. Use `Closes #42` only when the pull request completes the issue; otherwise
+   use `Refs #42`.
+5. Prefer squash merging and format the final commit with the convention above.
 
-Use a task ID instead when the commit maps to a specific checklist task:
+## Repository rules
 
-```text
-feat(gateway): buffer offline telemetry [IEMP-42-T2]
-fix(firmware): retry failed sensor reads [IEMP-57]
-docs(repo): document local setup [IEMP-63]
-```
-
-| Type | Use |
-| --- | --- |
-| `feat` | New behavior or capability. |
-| `fix` | Correct a defect. |
-| `docs` | Documentation changes. |
-| `refactor` | Restructure code without changing behavior. |
-| `test` | Add or update tests. |
-| `perf` | Improve performance. |
-| `build` | Toolchains, dependencies, or build configuration. |
-| `ci` | Continuous integration configuration. |
-| `chore` | Repository maintenance. |
-| `revert` | Revert a previous change. |
-
-Scopes are `firmware`, `gateway`, `backend`, `frontend`, `simulator`, `infra`,
-`docs`, `tests`, or `repo` for shared changes. Use `!` before the colon for a
-breaking change and explain the impact and migration in a `BREAKING CHANGE:`
-footer.
-
-The bootstrap commit may use `chore(repo): scaffold workstreams and conventions`.
-
-## Pull requests and validation
-
-1. Reference the issue and describe the behavior or documentation being changed.
-2. State how the acceptance criteria were checked, including commands and results
-   when applicable. If checks are not available yet, say so.
-3. Update affected setup instructions, contracts, and configuration examples.
-4. Use `Closes #42` only when the pull request fully completes the issue; use
-   `Refs #42` for partial work.
-5. Prefer squash merging and use the commit convention for the resulting commit.
-
-## Shared repository rules
-
-- Follow `.editorconfig`; add workstream-specific formatters when their
-  toolchains are selected.
-- Keep generated output, local environment files, and secrets out of Git. Commit
-  sanitized examples and dependency lockfiles for reproducible setup.
-- Put unit tests within their workstream and shared integration tests in `tests/`.
-- Document shared contracts and architecture decisions in `docs/`.
-- Add executable setup and validation instructions with each new workstream's
-  first implementation.
+- Follow `.editorconfig` and the component coding conventions.
+- Never commit secrets, local environment files, generated output, or build files.
+- Commit sanitized examples and dependency lockfiles.
+- Keep unit tests beside their component; put cross-component tests in `tests/`.
+- Record shared contracts and architecture decisions in `docs/`.
+- Include runnable setup and validation instructions with new components.

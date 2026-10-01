@@ -1,116 +1,79 @@
-# Local configuration and secrets
+# Configuration and secrets
 
-Examples contain synthetic local defaults or credential placeholders only.
-Compose needs one-time MQTT credential provisioning, but no `.env` file.
-Copy an example to `.env` beside it only for the workflow you use, and edit that
-local copy. Do not overwrite an existing `.env` when refreshing examples.
+Copy an example only for the workflow you use. Never overwrite an existing local
+file or commit secret values.
 
-## Files and loading rules
+## Configuration owners
 
-| Example | Consumer | Loading and precedence |
+| Example | Consumer | Loading rule |
 | --- | --- | --- |
-| [Root](../.env.example) | Compose: PostgreSQL, backend, frontend build, broker publishing/auth mount | Shell variables override root `.env`, then Compose defaults. A chosen `--env-file` replaces the default file. |
-| [Backend](../backend/.env.example) | Native Uvicorn; reference for Alembic/seed | Uvicorn explicitly loads `--env-file .env` from `backend/`; shell variables win. Alembic/seed use exported shell variables only. Nonempty `DATABASE_URL` wins over `PG*`. |
-| [Frontend](../frontend/.env.example) | Native Vite | Shell wins, then mode-specific `.env.[mode].local` / `.env.[mode]`, then `.env.local` / `.env`, then code defaults. |
-| [Gateway](../gateway/.env.example) | Native gateway | Pass the file with `--config`; matching shell variables override file values. Paths are relative to the file. MQTT and API credentials are separate. |
-| [Simulator](../simulator/.env.example) | Deterministic generator, API sender, and MQTT device publisher | Reads exported `API_BASE_URL`, `GATEWAY_API_KEY`, and MQTT settings. CLI target flags override environment variables. Scenario options are CLI flags; no automatic `.env` loading. |
-| [Firmware](../firmware/README.md) | ESP32 startup firmware | `idf.py menuconfig` stores the device ID and Wi-Fi credentials in ignored `firmware/sdkconfig`; only the ESP32 target is committed in `sdkconfig.defaults`. Rebuild and flash after changes. |
+| [`.env.example`](../.env.example) | Compose | Shell values override root `.env`, then Compose defaults. |
+| [`backend/.env.example`](../backend/.env.example) | Native Uvicorn | Pass explicitly with `--env-file`; Alembic and seed use exported variables. |
+| [`frontend/.env.example`](../frontend/.env.example) | Native Vite | Vite mode file precedence; shell values win. |
+| [`gateway/.env.example`](../gateway/.env.example) | Native gateway | Pass with `--config`; shell values win; relative paths start at the config directory. |
+| [`simulator/.env.example`](../simulator/.env.example) | Simulator | Environment and CLI flags; no automatic `.env` loading. |
+| [`firmware/sdkconfig`](../firmware/README.md) | ESP32 | Created by `idf.py menuconfig`; rebuild and flash after a change. |
 
-Compose does **not** automatically load service-directory `.env` files. Application
-Docker contexts use allowlists, excluding local env files and secret directories.
-Only the public `VITE_API_BASE_URL` is passed to the frontend build. PostgreSQL and
-Mosquitto settings belong to the root example and the committed broker config;
-firmware uses ESP-IDF Kconfig rather than environment variables.
+Compose does not load component `.env` files. Docker build allowlists exclude
+local configuration and secret directories.
 
-## Local addresses and defaults
+## Main local settings
 
-| Setting | Local value | Meaning |
-| --- | --- | --- |
-| `POSTGRES_DB`, `POSTGRES_USER` | `iemp` | Compose database and local owner |
-| `POSTGRES_PASSWORD` | `iemp-local-only` | Public synthetic local password; never reuse for deployed data |
-| `DATABASE_URL` | Empty in Compose | Uses the `PG*` settings derived from `POSTGRES_*`; explicit URL overrides them |
-| Native backend `DATABASE_URL` | `postgresql://iemp:iemp-local-only@127.0.0.1:5432/iemp` | Requires a separately provisioned host database |
-| `VITE_API_BASE_URL` | `/api` | Browser API prefix; readiness appends `/health/ready` |
-| `API_PROXY_TARGET` | `http://127.0.0.1:8000` | Native Vite development proxy target, without `/api` |
-| `MQTT_HOST`, `MQTT_PORT` | `127.0.0.1`, `1883` | Simulator and native gateway broker address |
-| `MQTT_USERNAME`, `MQTT_PASSWORD_FILE` | Demo account and ignored local password path | Native gateway MQTT credentials; simulator uses device credentials |
-| `MQTT_AUTH_DIR` | `./secrets/mosquitto` | Compose read-only broker auth mount; generate it before starting Mosquitto |
-| `API_BASE_URL` | `http://127.0.0.1:8000/api` | Gateway/simulator API prefix |
-| `QUEUE_DB_PATH` | `./queue.sqlite3` in the gateway example | Persistent gateway SQLite file; relative to the gateway config file |
-| `GATEWAY_API_KEY` | `replace-with-provisioned-...-credential` | Nonfunctional placeholder; replace with a generated token matching the backend map |
-| `GATEWAY_CREDENTIALS_JSON` | Empty | Backend map of registered gateway IDs to unique bearer tokens; empty denies ingestion |
-| Root `FRONTEND_PORT`, `BACKEND_PORT`, `MQTT_PORT` | `8080`, `8000`, `1883` | Published host ports, not container ports |
-| Root `*_BIND_ADDRESS` | `127.0.0.1` | Loopback publishing |
+| Setting | Default or rule |
+| --- | --- |
+| `POSTGRES_DB`, `POSTGRES_USER` | `iemp` |
+| `POSTGRES_PASSWORD` | Public lab-only default; replace for any real data. |
+| `DATABASE_URL` | When set, overrides all `PG*` values. |
+| `VITE_API_BASE_URL` | `/api` |
+| `MQTT_HOST`, `MQTT_PORT` | `127.0.0.1:1883` for host clients. |
+| `API_BASE_URL` | `http://127.0.0.1:8000/api` for gateway/simulator. |
+| `QUEUE_DB_PATH` | Persistent gateway SQLite path. |
+| `GATEWAY_CREDENTIALS_JSON` | Backend map from gateway IDs to bearer tokens. Empty denies ingestion. |
+| `GATEWAY_API_KEY` | Gateway token matching the backend map. |
+| `*_BIND_ADDRESS` | `127.0.0.1`; use an explicit LAN address only for a controlled lab. |
 
-Inside Compose the database is `postgres:5432`, the broker is `mosquitto:1883`, and
-the API is `backend:8000`. Those DNS names do not work in host processes or
-browsers. Compose does not publish PostgreSQL. A Pi uses the development host's
-reachable LAN address rather than its own loopback; see the
-[hardware connectivity instructions](../infra/README.md#gateway-and-firmware-outside-compose).
+Inside Compose, use `postgres:5432`, `mosquitto:1883`, and `backend:8000`.
+Those names do not work from a browser, ESP32, or native host process. Such
+clients use `127.0.0.1` on the same host or the server's LAN address.
 
-For an explicit Compose database URL, set `DATABASE_URL` in the root `.env` with
-`postgres:5432` and credentials matching `POSTGRES_*`. Changing `POSTGRES_PASSWORD`
-does not update an explicit URL or rotate an existing database password. Follow
-the [existing-volume rotation procedure](../infra/README.md#storage-and-shutdown).
-An external URL changes only the backend connection; Compose still starts its
-local PostgreSQL dependency.
+## Set up local configuration
 
-URL-encode special characters in URL usernames/passwords (for example, `@` becomes
-`%40`, `:` becomes `%3A`, and `$` becomes `%24`). Do not concatenate raw secrets
-into a URL. For root Compose values containing literal `$` or `#`, single-quote
-the value in `.env` to avoid interpolation/comment parsing. `PG*` variables remain
-an alternative to URL encoding. Configuration errors and readiness logs omit
-connection values.
+1. Run the installer when possible:
 
-The backend loads `GATEWAY_CREDENTIALS_JSON` once at startup. Use a JSON object
-whose keys are registered gateway IDs and values are generated tokens. No default
-gateway token is provisioned. Invalid mappings fail startup with a value-free
-error. Removing/replacing a mapping and restarting the backend revokes/rotates
-its credential; gateway/site disabling in the registry applies on the next
-ingestion request. The [simulator quick start](../simulator/README.md) generates
-a local token without printing it and provisions the demo mapping explicitly.
+   ```sh
+   ./Setup_Guide/install.sh
+   ```
 
-## Local setup
+2. For a manual Compose setup, copy the root example only when overrides are
+   needed:
 
-For Compose, from the repository root:
+   ```sh
+   cp -n .env.example .env
+   chmod 600 .env
+   ```
 
-```sh
-python infra/mosquitto/provision.py
-cp .env.example .env
-# Edit local overrides, then validate without printing resolved secrets.
-docker compose config --quiet
-docker compose up -d --build --wait
-```
+3. Validate without printing resolved secrets:
 
-The copy is optional; in PowerShell, `Copy-Item .env.example .env` is the equivalent
-copy command. The provisioner refuses to replace an existing auth directory.
-Native backend and frontend commands are in their respective READMEs. Uvicorn's
-`--env-file` support uses the locked `python-dotenv` development dependency.
-Restart native processes after changing settings; rebuild the frontend after
-changing `VITE_API_BASE_URL`. Nginx runtime variables do not modify built assets.
+   ```sh
+   docker compose config --quiet
+   ```
 
-Keep `/api` for local browser access through Vite/Nginx. An absolute browser API
-URL must be reachable by the browser and permit that frontend origin through
-CORS; the current backend does not configure cross-origin access.
+4. Restart a process after changing its configuration. The backend loads gateway
+   credentials once at startup; firmware settings require rebuild and flash.
 
-## Secret handling
+## Difficult cases
 
-Never store real database URLs, gateway keys, private keys, or service-account
-credentials in examples, source, test fixtures, logs, or screenshots. All `VITE_*`
-values and frontend build arguments are public; credentials belong in backend or
-gateway runtime configuration. Prototype API bearer authentication uses the
-explicit backend credential map; placeholder tokens are rejected. The broker
-denies anonymous MQTT and uses generated local passwords plus topic ACLs. Local
-MQTT is unencrypted; see the [topic contract](mqtt-topic-contract.md).
+- URL-encode special characters in `DATABASE_URL`; using separate `PG*` fields
+  avoids URL encoding.
+- Changing `POSTGRES_PASSWORD` does not rotate a password in an existing volume.
+- Quote Compose `.env` values containing `$` or `#` to prevent interpolation or
+  comments.
+- A device registration password authenticates that device's MQTT and heartbeat
+  requests. It is unrelated to the gateway subscriber password and gateway API
+  bearer token.
+- Registration automatically manages device broker accounts. The initial
+  provisioner still creates demo, gateway, and health accounts.
 
-Git ignores `.env` and variants, `*.env` files, `secrets/`, `.secrets/`,
-`credentials/`, common private-key/keystore files, `.pgpass`, and service-account
-credential files. Sanitized `.env.example` files stay trackable. Keep other local
-credential formats under `secrets/` and restrict access using host permissions.
-Git ignores do not protect a file already tracked: if a real secret was committed,
-revoke/rotate it and arrange history cleanup; deleting the working file alone is
-insufficient. Do not share expanded `docker compose config` output or environment
-dumps; use `--quiet` for validation.
-
-Loading behavior follows the official [Compose interpolation documentation](https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/)
-and [Vite environment documentation](https://vite.dev/guide/env-and-mode).
+Configuration errors and logs must never print secret values. Keep `.env`,
+`sdkconfig`, firmware images, broker password files, API tokens, and gateway
+queue backups in access-controlled storage.

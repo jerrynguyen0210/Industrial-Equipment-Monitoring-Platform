@@ -1,241 +1,92 @@
 # Infrastructure
 
-Local environment configuration and platform deployment definitions.
+Compose runs PostgreSQL 17, Mosquitto, the FastAPI backend, and the React/nginx
+frontend. Firmware and the native gateway run outside Compose.
 
-## Development guide
+## Start and verify
 
-Read [Infrastructure Coding Conventions](CODING_CONVENTIONS.md) for configuration,
-environment isolation, secrets, deployment, persistent storage, and recovery.
+1. From the repository root, run the installer:
 
-## Start the local platform
+   ```sh
+   ./Setup_Guide/install.sh
+   ```
 
-Install Docker Engine and Compose v2.24+ (or Docker Desktop with Linux
-containers), start the daemon, and run from the repository root:
+2. Or perform the basic manual start:
 
-```powershell
-python infra/mosquitto/provision.py
-docker compose up -d --build --wait
-```
+   ```sh
+   python3 infra/mosquitto/provision.py
+   docker compose up -d --build --wait
+   docker compose exec -T backend python -m alembic upgrade head
+   docker compose exec -T backend python -m app.seed
+   ```
 
-The one-time provisioner creates ignored local passwords, a hashed broker
-password file, and a broker administration secret under `secrets/mosquitto/`.
-It requires Python 3.13+ and Docker. Registering a device on the dashboard
-creates its scoped MQTT account automatically.
-It refuses to overwrite existing credentials; keep those files for the lifetime
-of the local broker and its clients. No native compiler, Node.js, hardware, or
-pre-existing `.env` is needed. The first start needs internet access to download
-images and locked packages.
-For an auth directory created by an earlier version, run
-`python infra/mosquitto/provision.py --ensure-admin` once before recreating
-Mosquitto and the backend. This keeps all existing device passwords.
-Images are pinned by digest; application dependencies use committed lockfiles.
-To update images, deliberately refresh the digests and rerun the smoke test.
+3. Verify:
 
-Open http://localhost:8080. `--wait` fails if services do not become healthy;
-add `--wait-timeout 120` on slower hosts. Image build time is separate from service
-startup time. Use `docker compose up --build` after changing application source,
-dependencies, or Dockerfiles.
+   ```sh
+   docker compose ps
+   curl --fail http://127.0.0.1:8000/ready
+   curl --fail http://127.0.0.1:8080/api/health/ready
+   ```
 
-## Configuration and network
+The provisioner refuses to replace an existing auth directory. Retain it across
+restarts. The demo seed is optional and must not be used for customer data.
 
-The root [compose.yaml](../compose.yaml) defines exactly four services. All use
-bounded container logs (three files of up to 10 MB), CPU/memory limits, an
-`unless-stopped` restart policy, and a 20-second graceful-stop timeout. Resource
-limits total 1 GiB of container memory; allow at least 2 GB plus build overhead.
+## Addresses and network
 
-| Service | Container address | Host access | Health check |
-| --- | --- | --- | --- |
-| PostgreSQL | `postgres:5432` | None | `pg_isready` over TCP |
-| Mosquitto | `mosquitto:1883` | `127.0.0.1:1883` | Authenticated MQTT QoS 1 publish with a deadline |
-| Backend | `backend:8000` | http://localhost:8000 | `/ready`, including a database query |
-| Frontend | `frontend:8080` | http://localhost:8080 | Nginx `/healthz` |
+| Service | Default host address |
+| --- | --- |
+| Dashboard | `http://127.0.0.1:8080` |
+| Backend | `http://127.0.0.1:8000` |
+| MQTT | `127.0.0.1:1883` |
+| PostgreSQL | Internal only |
 
-The `database` network is explicitly internal and contains only PostgreSQL and
-the backend. The `platform` bridge connects the backend, frontend, and broker and
-supports their published host ports. Compose DNS names are for containers;
-native gateway processes and browsers use host addresses. PostgreSQL has no
-published host port. There are no fixed container names or external networks to
-create beforehand.
+For an ESP32 or separate gateway, bind MQTT/backend to the server's specific LAN
+address and configure clients with that address. Do not use `0.0.0.0` as a client
+destination. Plain MQTT and device heartbeat HTTP are lab-only transports.
 
-PostgreSQL readiness gates backend startup; backend readiness gates frontend
-startup. Mosquitto starts independently and never depends on the backend. Health
-checks report availability; Docker does not restart a process merely because it
-is unhealthy. Once running, the frontend continues serving its page during an
-API outage and the backend reconnects after database recovery.
+The frontend proxies `/api` to the backend. PostgreSQL is reachable only on the
+internal network. A backend outage does not stop Mosquitto or the static frontend.
 
-Copy [.env.example](../.env.example) to `.env` only to override defaults. Shell
-environment variables take precedence over `.env`, followed by the defaults in
-Compose. `.env` is ignored by Git and excluded from application image contexts.
+## Device broker accounts
 
-| Setting | Default | Purpose |
-| --- | --- | --- |
-| `POSTGRES_DB` / `POSTGRES_USER` | `iemp` / `iemp` | Initial database and local owner |
-| `POSTGRES_PASSWORD` | `iemp-local-only` | Local-only password shared with the backend |
-| `DATABASE_URL` | Empty | Optional backend PostgreSQL URL; overrides its `PG*` settings |
-| `VITE_API_BASE_URL` | `/api` | Public browser API prefix, applied during frontend build |
-| `FRONTEND_PORT` / `BACKEND_PORT` / `MQTT_PORT` | `8080` / `8000` / `1883` | Published host ports |
-| `FRONTEND_BIND_ADDRESS` / `BACKEND_BIND_ADDRESS` / `MQTT_BIND_ADDRESS` | `127.0.0.1` | Host interfaces to publish on |
-| `MQTT_AUTH_DIR` | `./secrets/mosquitto` | Ignored directory generated by the broker provisioner |
+The dashboard registration API creates device accounts and topic ACLs. The
+initial provisioner creates only the demo device, gateway subscriber, and health
+accounts needed to boot and test the lab. Removing a managed device revokes its
+broker account when it has no retained history.
 
-Changing a host port does not change the service's internal port. The frontend's
-same-origin API proxy therefore continues working if `BACKEND_PORT` changes.
-Native clients must update their own MQTT port or API/proxy address when a host
-port changes. The root example owns PostgreSQL and broker publishing settings;
-Mosquitto's listener and authentication settings are explicit in
-`infra/mosquitto/mosquitto.conf`, which does not read `.env`. See the
-[configuration guide](../docs/configuration.md) for service templates and precedence.
-The broker denies anonymous connections and applies the [local topic ACL](mosquitto/acl).
-MQTT remains unencrypted and the shared development database owner/password
-remains a local-only exception. Do not use this configuration as a deployed
-environment or place production data in it. No secrets are shipped to the browser.
+The native gateway uses its MQTT password to subscribe and a separate bearer
+token to send HTTP batches. Keep both private.
 
 ## Storage and shutdown
 
-| Named volume | Mount | Owner / purpose |
-| --- | --- | --- |
-| `postgres_data` | `/var/lib/postgresql/data` | Official image's `postgres` user; database files |
-| `mosquitto_data` | `/mosquitto/data` | Official image's `mosquitto` user; retained messages/session state |
-
-The official entrypoints initialize volume permissions; no manual host `chmod`
-is needed. Backend and frontend run as unprivileged users. Mosquitto
-configuration, ACL, and generated auth directory are read-only mounts; broker
-logs go to stdout rather than an unbounded volume. The generated `passwd` file
-contains hashes; separate local password files are ignored by Git. Managed
-device accounts live in Mosquitto's dynamic security file on the persistent
-`mosquitto_data` volume. The backend reads only the broker administration secret
-and never mounts the Docker socket. Back up `secrets/mosquitto` and
-`mosquitto_data` together. Keep `admin.password` with the dynamic security
-configuration: Mosquitto reads the initialization password only when it first
-creates that configuration. Replacing `admin.password` alone would prevent the
-backend from administering accounts. New registrations and existing-device MQTT
-setup update the dynamic security file without restarting Mosquitto.
-Volume names are Compose-project scoped (normally `iemp_postgres_data` and
-`iemp_mosquitto_data`). Keep the project name stable to reuse data.
+PostgreSQL and Mosquitto use named volumes. Operate them with:
 
 ```sh
-docker compose stop         # Stop processes and preserve containers and data.
-docker compose down         # Remove containers/networks and preserve data.
-docker compose up -d --wait # Recreate containers and reuse the same data.
+docker compose stop
+docker compose up -d --wait
+docker compose down
 ```
 
-Only for an intentional reset of the current local project, the following
-**deletes both named volumes and their data**:
+`down` removes containers and networks but retains named volumes. Adding
+`--volumes` deletes stored database and broker data.
 
-```sh
-docker compose down --volumes
-```
+To rotate the PostgreSQL password in an existing volume, change it inside
+PostgreSQL and update every matching connection setting in the same maintenance
+window. Changing `.env` alone affects only container configuration, not the
+stored database role.
 
-PostgreSQL initialization settings only apply to an empty volume. Changing a
-password in `.env` does not rotate the database password. For existing data,
-connect with `docker compose exec postgres psql -U iemp -d iemp`, use
-`\password iemp`, update `.env` to match, and recreate the backend. Adjust the user/database
-names when customized. Do not delete a valuable volume to resolve credentials.
+Back up PostgreSQL with `pg_dump` and test restore in isolation. Broker volumes
+and the gateway SQLite queue are separate durability boundaries and require
+their own backup plan.
 
-Mosquitto saves persistence periodically (30 seconds) and on a graceful shutdown.
-A broker acknowledgement is not proof of gateway SQLite commit or immediate
-disk durability. Neither volume is a backup; backup/restore automation and
-telemetry retention are outside this bootstrap. Monitor Docker disk usage with
-`docker system df`; named volumes have no portable Compose disk quota.
+## Troubleshoot
 
-## Gateway and firmware outside Compose
+1. Run `docker compose ps --all`.
+2. Inspect bounded logs: `docker compose logs --tail 100 <service>`.
+3. Check host ports and disk space.
+4. Re-run `docker compose config --quiet` after configuration changes.
+5. Confirm a device/gateway uses the server LAN address and the correct type of
+   credential.
 
-Gateway C++17/SQLite and ESP-IDF firmware remain native workstreams. Neither is
-built or started by Compose, and there are no privileged containers or device
-mounts. Keep the gateway database on the gateway's persistent local filesystem,
-outside this Compose project's volumes. Follow the
-[hardware setup guide](../Setup_Guide/02-hardware-and-gateway.md) for wiring,
-build, configuration, and validation.
-
-For a gateway process on the same computer, configure MQTT at `127.0.0.1:1883`
-and the backend base URL at `http://127.0.0.1:8000`. The native gateway MQTT
-client subscribes, stores valid readings locally, and forwards HTTP batches.
-Use the generated `gateway-demo-001` MQTT credential for subscribing and a
-separate backend bearer token for HTTP ingestion. The
-[topic contract](../docs/mqtt-topic-contract.md) defines device
-publish and gateway subscribe behavior.
-
-For an ESP32 or Raspberry Pi on a trusted lab LAN, set `MQTT_BIND_ADDRESS` in
-`.env` to the development computer's LAN IPv4 address. If a Pi gateway also needs
-the API, set `BACKEND_BIND_ADDRESS` to that address. Recreate the relevant service
-with `docker compose up -d`. Use that LAN address in device configuration, and
-allow only the intended clients through the host firewall. `localhost` on a Pi
-refers to the Pi, and `mosquitto` is not a LAN DNS name. MQTT is authenticated
-but unencrypted in this local configuration; only use it on a trusted lab LAN.
-Deployed device TLS is a separate task. Keep dashboard publishing on loopback
-unless needed.
-
-With native Mosquitto client tools, run these in two PowerShell terminals to
-exercise the host-to-broker path (substitute the LAN address when testing
-remotely). The payload comes from the committed
-[sample event](mosquitto/sample-event.json), and neither command sets retain:
-
-```powershell
-# Terminal 1: subscribe first.
-$gatewayPassword = (Get-Content -Raw secrets/mosquitto/gateway-demo-001.password).Trim()
-mosquitto_sub -h 127.0.0.1 -p 1883 -u gateway-demo-001 -P $gatewayPassword -t 'equipment/+/telemetry' -q 1 -C 1 -W 30
-```
-
-```powershell
-# Terminal 2: publish one reading.
-$devicePassword = (Get-Content -Raw secrets/mosquitto/device-demo-001.password).Trim()
-mosquitto_pub -h 127.0.0.1 -p 1883 -u device-demo-001 -P $devicePassword -t equipment/device-demo-001/telemetry -q 1 -f infra/mosquitto/sample-event.json
-```
-
-The subscriber should print the JSON event. The Mosquitto CLI passes passwords
-as process arguments, so use these commands only on your controlled local host.
-The isolated smoke test below checks the same delivery without printing passwords,
-plus anonymous rejection and the telemetry no-retain policy.
-
-If native Mosquitto client tools are unavailable, the same sample works with
-Compose alone. Run the first command in one PowerShell terminal, then the second
-in another:
-
-```powershell
-docker compose exec -T --user 0 mosquitto sh -c 'mosquitto_sub -h 127.0.0.1 -u gateway-demo-001 -P "$(cat /mosquitto/config/auth/gateway-demo-001.password)" -t "equipment/+/telemetry" -q 1 -C 1 -W 30'
-```
-
-```powershell
-Get-Content -Raw infra/mosquitto/sample-event.json | docker compose exec -T --user 0 mosquitto sh -c 'mosquitto_pub -h 127.0.0.1 -u device-demo-001 -P "$(cat /mosquitto/config/auth/device-demo-001.password)" -t equipment/device-demo-001/telemetry -q 1 -s'
-```
-
-For hardware work without the application stack, run `docker compose up -d
-mosquitto`. To simulate a backend outage while MQTT remains available:
-
-```sh
-docker compose stop backend
-# Continue native MQTT publishing/subscribing here.
-docker compose up -d --wait backend
-```
-
-Do not use `docker compose down` for a backend-only outage: it also stops the
-broker. A gateway on a Pi may instead use a native Pi broker while this Compose
-stack supplies only PostgreSQL/backend/frontend.
-
-## Validation and troubleshooting
-
-```sh
-docker compose config --quiet
-docker compose ps --all
-docker compose logs --tail 100 postgres mosquitto backend frontend
-python tests/compose_smoke.py
-```
-
-The Python smoke test needs Python 3.13+ and a running Docker daemon. It uses a
-unique project, random host ports, synthetic data, and temporary credentials;
-it verifies outages and named-volume persistence before removing only its own
-test volumes. See [tests/README.md](../tests/README.md).
-
-- Daemon unavailable: start Docker Desktop/Engine and verify `docker info`.
-- Port conflict: change the corresponding `*_PORT` in `.env`, then recreate.
-- Backend unhealthy: inspect database/API logs; verify existing-volume credentials.
-- Frontend shows unavailable: inspect backend readiness; it needs an actual SQL
-  query, while `pg_isready` only confirms that PostgreSQL accepts connections.
-- Broker mount error: confirm `infra/mosquitto/mosquitto.conf` is a file and Docker
-  Desktop can share the checkout. Compose will not create a missing config directory.
-- Pi/ESP32 cannot connect: verify the explicit bind address, host firewall, LAN
-  reachability, and that clients use the computer's address rather than localhost.
-
-Compose behavior follows the official [startup ordering](https://docs.docker.com/compose/how-tos/startup-order/)
-and [network configuration](https://docs.docker.com/reference/compose-file/networks/)
-documentation. Broker persistence and queue settings follow the
-[Mosquitto configuration reference](https://mosquitto.org/man/mosquitto-conf-5.html).
+Do not delete volumes as a troubleshooting step. See
+[Infrastructure Coding Conventions](CODING_CONVENTIONS.md).

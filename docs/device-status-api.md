@@ -1,104 +1,82 @@
-# Device status API
+# Device management and status API
 
-`GET /api/v1/devices` returns registered devices in name and ID order, with the
-latest stored temperature reading and connection status for each device:
+## List devices
+
+`GET /api/v1/devices` returns every registered device in name and ID order:
 
 ```json
 {
   "devices": [
     {
-      "device_id": "device-demo-001",
-      "name": "Demo device",
+      "device_id": "esp-nano",
+      "name": "Workshop sensor",
       "gateway_id": "gateway-demo-001",
       "enabled": true,
-      "online": false,
-      "last_seen_at": null,
+      "online": true,
+      "last_seen_at": "2026-10-01T01:20:00Z",
       "latest_reading": {
         "value": "23.75",
         "unit": "celsius",
-        "measured_at": "2026-09-26T02:30:00Z",
-        "gateway_received_at": "2026-09-26T02:30:01Z",
-        "event_at": "2026-09-26T02:30:00Z",
+        "event_at": "2026-10-01T01:19:58Z",
         "timestamp_source": "measured_at",
+        "measured_at": "2026-10-01T01:19:58Z",
+        "gateway_received_at": "2026-10-01T01:19:59Z",
         "clock_quality": "synchronised"
       }
-    },
-    {
-      "device_id": "device-without-data",
-      "name": "New device",
-      "gateway_id": "gateway-demo-001",
-      "enabled": true,
-      "online": false,
-      "last_seen_at": null,
-      "latest_reading": null
     }
   ]
 }
 ```
 
-The endpoint reads registry and telemetry data from PostgreSQL. It chooses the
-highest `event_at` per device, with the telemetry row ID as a deterministic
-tie-breaker. `event_at` is `measured_at` only when it is present and clock quality
-is `synchronised`; otherwise it is `gateway_received_at`. `timestamp_source`
-identifies which time was used. `measured_at` remains the original nullable device
-time even when it is untrustworthy. Neither event time nor current selection uses
-backend receipt time, so a delayed replay of an older event does not displace a
-newer reading. A missing `latest_reading` means no valid reading is recorded;
-it is not a zero or a healthy status. Values are JSON decimal strings to
-preserve the stored numeric representation; clients must validate them before
-display or plotting.
+`online` is true only when the device, gateway, and site are enabled and the
+server accepted a heartbeat or current telemetry within 90 seconds. Offline
+means the server has not confirmed recent contact; it does not identify whether
+power, Wi-Fi, MQTT, the gateway, or the sensor failed. The dashboard polls every
+15 seconds.
 
-Database failures return HTTP 503 with a machine-readable
-`device_status_unavailable` reason. The endpoint returns all registered devices,
-including disabled registrations. `online` is true only for an enabled device on
-an enabled gateway and site when the server accepted a telemetry reading or a
-valid heartbeat in the previous 90 seconds. `last_seen_at` is the server time of
-that contact, stored in PostgreSQL and retained across API restarts. Offline
-means no recent confirmed server contact; it does not diagnose the cause.
-In particular, a connected MQTT socket with no readings or heartbeat still
-appears offline in this API.
+The latest reading uses `measured_at` only with a synchronised clock; otherwise
+it uses `gateway_received_at`. A delayed older event cannot replace a newer one.
+Values are decimal strings. `latest_reading: null` means no reading is stored.
+Database failure returns HTTP 503 with `device_status_unavailable`.
 
-## Device management
+## Register a device
 
-`GET /api/v1/gateways` lists enabled gateways for the registration form.
-`POST /api/v1/devices` accepts `device_id`, `gateway_id`, `name`, and `password`.
-Device IDs may contain letters, digits, `_`, and `-`; passwords must be 12–128
-characters. The password is stored as a salted PBKDF2 hash and is never returned.
-Registration also creates a Mosquitto account with the Device ID as MQTT
-username and the same password, scoped to `equipment/<Device ID>/telemetry`.
-If a broker password-file account already has that ID, registration verifies
-that the supplied password connects and keeps the existing account.
-The new device starts offline. Broker failure returns 503 and rolls back the
-database registration. Duplicate database IDs or conflicting MQTT credentials
-return 409; unavailable gateways return 404, and invalid input returns 422.
-The management API follows
-the existing local dashboard's access model, which has no operator login; deploy
-it only behind trusted access controls.
+1. Get enabled gateway choices with `GET /api/v1/gateways`.
+2. Send `POST /api/v1/devices` with `device_id`, `gateway_id`, `name`, and
+   `password`.
+3. Configure the ESP32 with that exact Device ID and password.
 
-`POST /api/v1/devices/{device_id}/mqtt` accepts the existing registration
-password and creates or updates its managed MQTT account, or verifies a
-matching older password-file account. Use it for devices
-registered before automatic broker provisioning. A wrong password returns 401.
+Device IDs allow letters, digits, `_`, and `-`. Passwords are 12–128 characters.
+The backend stores a salted PBKDF2 hash and never returns the password.
 
-`DELETE /api/v1/devices/{device_id}` removes a registration that has no saved
-telemetry or alerts. It returns 204 after deletion, 404 when the device is not
-registered, and 409 with `device_has_history` when retained readings or alert
-records still reference it. The 409 response leaves the registration and its
-history unchanged. The dashboard asks for confirmation before deletion and
-refreshes the list afterward. Accounts created through registration are revoked
-from Mosquitto when the device is removed. Older manually provisioned broker
-accounts are not altered by database deletion.
+Registration also creates a Mosquitto account. The Device ID is the MQTT username,
+the registration password is the MQTT password, and the ACL allows publishing
+only to `equipment/<device_id>/telemetry`. Database registration and broker
+provisioning succeed or fail together. No manual `add_device.py` step is needed.
+
+| Result | HTTP status |
+| --- | --- |
+| Created | 201 |
+| Invalid input | 422 |
+| Unknown or disabled gateway | 404 |
+| Duplicate ID or conflicting broker account | 409 |
+| Broker update failed | 503 |
+
+For a registration created before automatic provisioning, send its password to
+`POST /api/v1/devices/{device_id}/mqtt`. A wrong password returns 401.
+
+## Report presence
 
 `POST /api/v1/devices/{device_id}/heartbeat` accepts
-`{"password":"the-registration-password"}` and returns 204 when authenticated.
-Send a heartbeat at least every 60 seconds to keep status online. A device that
-publishes valid telemetry through the existing MQTT gateway also becomes online
-when the backend accepts readings received by the gateway within the last 90
-seconds; queued older readings do not update presence. The ESP32 firmware can
-send a heartbeat every 30 seconds when its backend host is configured, even
-with the temperature source disabled. Use the same Device ID and password in
-the ESP32 firmware for MQTT and heartbeats. An existing registration's password
-cannot be read back; removing and registering a device again is possible only
-when it has no saved readings or alerts. The dashboard
-polls status every 15 seconds, so an offline transition can appear up to 15
-seconds after the 90-second server contact window ends.
+`{"password":"<registration-password>"}` and returns 204. Firmware sends a
+heartbeat every 30 seconds when its backend host is configured. Accepted recent
+telemetry also refreshes presence; delayed queued readings do not.
+
+## Remove a device
+
+`DELETE /api/v1/devices/{device_id}` returns 204 and revokes a broker account
+created by registration. It returns 409 `device_has_history` when telemetry or
+alerts still reference the device, leaving all data unchanged. Unknown devices
+return 404. Older manually provisioned broker accounts are not removed.
+
+The local management API has no operator login. Restrict it to trusted lab access.

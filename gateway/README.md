@@ -1,197 +1,150 @@
 # Native gateway
 
-The gateway is a C++17 Linux process for Raspberry Pi and other Linux hosts. It
-loads an explicit configuration file, validates settings, opens a local SQLite
-database in WAL mode with full synchronous durability, subscribes to MQTT
-`equipment/+/telemetry` at QoS 1, validates device messages, and persists accepted
-messages in a durable SQLite queue. A separate worker posts committed rows to
-the backend in batches. It emits JSON logs and stops MQTT, HTTP work, and SQLite
-on SIGTERM or SIGINT.
+C++17 Linux service that subscribes to MQTT, validates device events, commits
+them to a durable SQLite queue, and forwards HTTP batches to the backend.
 
 ## Build and test
 
-Install a C++17 compiler, CMake 3.16+, SQLite, libmosquitto, and libcurl
-development headers, nlohmann JSON headers, Python 3, Mosquitto broker/client
-tools for integration tests, and clang-format 18. On Raspberry Pi OS/Debian or
-Ubuntu:
+1. If the Compose broker uses port 1883 on this host, stop it before installing
+   native Mosquitto; the package may start its own broker service:
 
-```sh
-sudo apt-get install cmake g++ libsqlite3-dev libmosquitto-dev libcurl4-openssl-dev nlohmann-json3-dev python3 mosquitto mosquitto-clients clang-format-18
-clang-format-18 --dry-run --Werror gateway/src/*.cpp gateway/src/*/*.cpp gateway/include/gateway/*.hpp gateway/include/gateway/*/*.hpp gateway/tests/*.cpp
-cmake -S gateway -B gateway/build -DCMAKE_BUILD_TYPE=Release
-cmake --build gateway/build --parallel 2
-ctest --test-dir gateway/build --output-on-failure
+   ```sh
+   docker compose stop mosquitto
+   ```
+
+2. Install dependencies on Raspberry Pi OS, Debian, or Ubuntu:
+
+   ```sh
+   sudo apt-get install cmake g++ libsqlite3-dev libmosquitto-dev \
+     libcurl4-openssl-dev nlohmann-json3-dev python3 mosquitto \
+     mosquitto-clients clang-format-18
+   sudo systemctl disable --now mosquitto
+   ```
+
+   On a host without systemd, omit the last command. Restart the Compose broker
+   with `docker compose up -d --wait mosquitto`.
+
+3. From the repository root, run:
+
+   ```sh
+   clang-format-18 --dry-run --Werror gateway/src/*.cpp gateway/src/*/*.cpp \
+     gateway/include/gateway/*.hpp gateway/include/gateway/*/*.hpp gateway/tests/*.cpp
+   cmake -S gateway -B gateway/build -DCMAKE_BUILD_TYPE=Release
+   cmake --build gateway/build --parallel 2
+   ctest --test-dir gateway/build --output-on-failure
+   ```
+
+The tests cover config errors, shutdown, SQLite recovery, MQTT intake, HTTP
+outcomes, retries, and backend recovery. Hardware and real power loss need
+separate tests.
+
+## Configure and run
+
+1. Copy the example and edit local addresses/token:
+
+   ```sh
+   cp -n gateway/.env.example gateway/.env
+   chmod 600 gateway/.env
+   ```
+
+2. Keep `MQTT_PASSWORD_FILE` pointed at the gateway subscriber password. Set
+   `GATEWAY_API_KEY` to the separate token in backend
+   `GATEWAY_CREDENTIALS_JSON`. Put `QUEUE_DB_PATH` on persistent writable storage.
+3. Validate and run:
+
+   ```sh
+   gateway/build/gateway --config gateway/.env --check-config
+   gateway/build/gateway --config gateway/.env
+   ```
+
+The config path is always explicit. Environment variables override matching
+file entries. Relative secret and queue paths start at the config directory.
+Invalid, unknown, or duplicate settings fail before storage opens.
+
+## Intake and queue behavior
+
+The gateway accepts one non-retained schema v1 JSON event on
+`equipment/{device_id}/telemetry`. It rejects oversized messages, duplicate JSON
+keys, unknown fields, gateway-owned fields, bad types, and topic/payload ID
+mismatch without logging the payload.
+
+For a new `(device_id, boot_id, sequence_number)`, it commits the original JSON
+bytes and its own UTC receipt time before logging `message_stored`. An identical
+byte replay keeps the first row. Changed bytes with the same identity are
+quarantined as a conflict.
+
+The worker claims up to 500 rows, then posts a batch with three-second connect
+and ten-second total timeouts. `accepted` and `duplicate` rows are deleted;
+permanent rejections move to `quarantined_events`. Transport errors, non-200
+responses, and malformed/incomplete results return all claimed rows to pending.
+Retries use jittered exponential delay capped at 30 seconds.
+
+SQLite uses WAL mode and full synchronous durability. On startup, abandoned
+`in_flight` rows return to pending. One gateway process must own each queue file.
+There is currently no queue/quarantine capacity limit.
+
+Complex delivery boundary:
+
+```text
+MQTT PUBACK -> broker receipt
+message_stored -> SQLite commit
+batch_applied -> backend returned committed item outcomes
 ```
 
-Run those commands from the repository root. A production build can omit Python
-with `-DBUILD_TESTING=OFF` at configure time. `cmake --install gateway/build
---prefix /usr/local` installs the executable to `/usr/local/bin/gateway`. The CI
-gateway job runs the same build and tests on Ubuntu 24.04. The tests check
-configuration failures, SIGTERM exit, SQLite migration and restart recovery,
-transactional queue claims, authenticated MQTT intake, and HTTP delivery
-against a localhost backend stub. They cover mixed backend outcomes, transient
-HTTP failure, automatic recovery without a gateway restart, restart recovery,
-bounded retry delays, and malformed responses. They do not establish
-delivery against a deployed backend, ESP32 hardware behavior, or power-loss
-recovery.
+Only the later boundary includes the earlier work.
 
-## Configuration and run
-
-Copy [.env.example](.env.example) to an ignored local file such as
-`gateway/.env`. Provision the broker credential using
-`python infra/mosquitto/provision.py` from the repository root, and replace
-`GATEWAY_API_KEY` with a separate token registered in the backend's
-`GATEWAY_CREDENTIALS_JSON`. The MQTT credential is used for subscription. The API
-credential is sent as a bearer token on each telemetry batch request. Never
-place either credential in version control.
+## Demonstrate outage recovery
 
 ```sh
-cp gateway/.env.example gateway/.env
-# Edit the token and local addresses.
-gateway/build/gateway --config gateway/.env --check-config
-gateway/build/gateway --config gateway/.env
+python3 gateway/tests/demo_backend_outage.py \
+  --gateway gateway/build/gateway --outage-seconds 60
 ```
 
-The config file is required; it is never loaded implicitly. Every supported
-setting must be present. Shell environment variables of the same names override
-file values. Paths for `MQTT_PASSWORD_FILE` and `QUEUE_DB_PATH` are resolved
-relative to the config file's directory unless absolute. The loader accepts
-blank lines, full-line `#` comments, unquoted values, and single or double
-quoted values. It does not interpolate variables or parse inline comments.
-Unknown/duplicate keys, invalid ports or URLs, unreadable password files, and
-example API token placeholders fail startup with a setting-specific JSON error.
-`--check-config` validates settings without opening or creating SQLite.
+The script creates an isolated stack, publishes during a backend outage, checks
+automatic queue drain and unique PostgreSQL rows, then removes its resources.
 
-Put `QUEUE_DB_PATH` on persistent local storage whose parent directory is
-writable by the service account. Newly created database and WAL files use
-owner-only permissions. Existing file permissions are not changed. A missing
-parent directory causes a clear storage error at startup.
+## Install as a service
 
-## MQTT intake and receipt semantics
+1. Install the binary and create a service account:
 
-The gateway subscribes at QoS 1 and validates one JSON object per message. It
-requires schema version 1, the documented event and quality fields and types,
-finite numeric `value`, and a `device_id` matching the topic. It rejects unknown
-fields, duplicate JSON keys, retained messages, payloads over 16 KiB, and
-messages that contain `gateway_received_at` or other gateway-owned fields.
-Rejections log a safe reason without the payload.
+   ```sh
+   sudo cmake --install gateway/build --prefix /usr/local
+   sudo useradd --system --home /var/lib/iemp-gateway \
+     --shell /usr/sbin/nologin iemp-gateway
+   sudo install -d -m 0700 -o iemp-gateway -g iemp-gateway /etc/iemp-gateway
+   ```
 
-On the first valid delivery for `(device_id, boot_id, sequence_number)`, the
-gateway writes the **original MQTT JSON bytes** and its own UTC
-`gateway_received_at` into SQLite `intake_events` in an explicit transaction.
-`gateway_received_at` is captured when the MQTT callback starts, never read from
-device JSON. An identical byte-for-byte retry keeps the first payload and time.
-A changed payload with the same identity logs `identity_conflict` and leaves the
-first row intact. Byte-for-byte comparison is intentionally conservative: a
-reformatted but otherwise equivalent JSON retry is also treated as a conflict.
+2. Install the private config and MQTT password under `/etc/iemp-gateway/`, owned
+   by the service account with mode 0600.
+3. Set an absolute password path and reachable MQTT/API addresses in the config.
+4. Install and start the unit:
 
-## Durable queue and recovery
+   ```sh
+   sudo install -m 0644 gateway/gateway.service.example \
+     /etc/systemd/system/iemp-gateway.service
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now iemp-gateway
+   journalctl -u iemp-gateway -f
+   ```
 
-`intake_events` has a unique primary key on `(device_id, boot_id,
-sequence_number)`. Each new row starts in `pending` with `attempt_count = 0`.
-The insert commits before intake logs `message_stored`. The forwarder boundary
-reads only SQLite rows; it cannot forward an event directly from an MQTT
-callback. The delivery worker atomically claims up to 500 persisted `pending`
-rows, changing them to `in_flight` and incrementing `attempt_count`
-before any network call. A failed attempt releases the matching claim back to
-`pending`. The attempt count measures claims, including attempts stopped before
-the request completes. Transactions contain only local database work.
+Skip `useradd` when the account already exists. The unit stores the queue under
+`/var/lib/iemp-gateway`.
 
-The worker posts `POST /api/v1/telemetry/batches` with the configured bearer
-token. It moves the device's `schema_version` into the batch envelope and adds
-the original `gateway_received_at` to each event. It copies raw JSON member
-text so high precision numbers keep their original representation. Requests are
-bounded to 500 rows and 9 MiB, with a 3-second connection and 10-second total
-timeout. The worker checks the full ordered response before changing any row:
-`accepted` and `duplicate` delete confirmed rows; permanent `rejected` outcomes
-move rows with their reason into `quarantined_events` in the same transaction.
-Incomplete, mismatched, or unsupported responses leave every row pending.
-Transport errors and non-200 responses also keep rows pending. The worker waits
-between half and all of an exponentially growing 2, 4, 8, 16, then 30-second
-cap after successive failures. It resets the delay after delivery succeeds or
-the queue becomes empty. HTTP 401/403 waits 30 seconds. Every `message_stored`,
-`delivery_deferred`, `retry_scheduled`, and `batch_applied` log reports the queue
-depth; retry logs also report the chosen delay in milliseconds. libcurl opens a
-new connection on each attempt, so restored backend service is used without a
-gateway restart.
-The prototype does not yet use `Retry-After` response headers.
+## Back up and check the queue
 
-To demonstrate a full one-minute outage against the actual backend and
-PostgreSQL, build the gateway and run the isolated Compose demo from the
-repository root:
+Stop the service, then create a new SQLite backup file:
 
 ```sh
-python3 gateway/tests/demo_backend_outage.py --gateway gateway/build/gateway --outage-seconds 60
+python3 -c 'import sqlite3,sys; s=sqlite3.connect(sys.argv[1]); d=sqlite3.connect(sys.argv[2]); s.backup(d); d.close(); s.close()' \
+  /var/lib/iemp-gateway/queue.sqlite3 /safe/location/queue-backup.sqlite3
 ```
 
-The demo provisions temporary MQTT credentials and a separate Compose project,
-stops its backend for 60–120 seconds, publishes six events while the gateway
-continues running, restarts the backend, and checks that the queue drains and
-PostgreSQL contains exactly six unique event rows. It removes its own containers
-and volumes after the check. Docker Compose and the built gateway are required.
-
-On startup, the gateway migrates older `intake_events` tables in place, giving
-existing rows `pending` and zero attempts while preserving payloads and original
-receipt times. It returns abandoned `in_flight` rows to `pending` without
-resetting their attempt counts, reads an initial batch of up to 500 pending
-rows, and logs `pending_loaded` with that batch size and the total queue depth.
-Later batches remain in SQLite for the worker. Quarantined identities are not
-requeued by repeated MQTT delivery. This queue is designed for one gateway
-process per database; do not point two running instances at the same
-`QUEUE_DB_PATH`.
-
-To back up a queue, stop the service or use Python's SQLite backup API while it
-is running. Use a new destination file. For example, with the service stopped:
+Check integrity:
 
 ```sh
-python3 -c 'import sqlite3,sys; source=sqlite3.connect(sys.argv[1]); target=sqlite3.connect(sys.argv[2]); source.backup(target); target.close(); source.close()' /var/lib/iemp-gateway/queue.sqlite3 /safe/location/queue-backup.sqlite3
+python3 -c 'import sqlite3,sys; d=sqlite3.connect(sys.argv[1]); print(d.execute("PRAGMA quick_check").fetchone()[0])' \
+  /var/lib/iemp-gateway/queue.sqlite3
 ```
 
-Check a suspect database with `python3 -c 'import sqlite3,sys; db=sqlite3.connect(sys.argv[1]); print(db.execute("PRAGMA quick_check").fetchone()[0])' /var/lib/iemp-gateway/queue.sqlite3`.
-Keep the database and its WAL files for diagnosis if the check fails; there is
-no automatic repair path. This prototype has no queue or quarantine capacity
-limit or storage pressure controls yet.
-
-The stored MQTT payload retains its original `schema_version` and device
-content. MQTT QoS 1 acknowledges broker delivery, not a gateway SQLite commit;
-an event is locally recoverable only after its insert commits. A lost HTTP
-response may cause a retry; backend duplicate classification resolves a
-previously committed event without changing its identity.
-
-Send SIGTERM to stop the process. The process stops MQTT callbacks, interrupts
-and joins the HTTP worker, closes SQLite, logs `stopped`, and exits with status
-0. Startup, configuration, and storage errors exit nonzero. Each log line has
-UTC `timestamp`, `level`, `component`, `event`, and `message` fields. Credential
-values are not logged.
-`ready` means the process has started; `subscribed` confirms the broker granted
-the QoS 1 telemetry subscription.
-The MQTT client currently uses unencrypted TCP with a password; use it only on
-the local development host or a controlled lab network. Deployed MQTT TLS
-support is still required. Use an HTTPS `API_BASE_URL` for deployed backend
-connections; libcurl verifies the server certificate and hostname.
-
-For systemd, see [gateway.service.example](gateway.service.example). Create the
-`iemp-gateway` service account, install the config at
-`/etc/iemp-gateway/gateway.env` readable only by that account, and make
-`MQTT_PASSWORD_FILE` an absolute path readable by it. The unit creates
-`/var/lib/iemp-gateway` and overrides `QUEUE_DB_PATH` to place the database
-there. Adjust paths and account names for the host. `systemctl stop` sends
-SIGTERM and waits for the normal close path.
-
-## Module boundaries
-
-| Directory | Responsibility |
-| --- | --- |
-| `src/config.cpp` | Load and validate process settings. |
-| `src/log.cpp` | JSON lifecycle and error logs. |
-| `src/sqlite/` | SQLite connection, schema migration, and durable queue operations. |
-| `src/mqtt/` | Authenticated MQTT subscription and callback lifecycle. |
-| `src/telemetry/` | Topic and JSON contract validation. |
-| `src/intake.cpp` | Gateway receipt timestamp and intake decisions. |
-| `src/forwarder.cpp` | Batch construction, response validation, and delivery worker. |
-| `src/http/` | libcurl transport with bearer authentication and timeouts. |
-
-The [gateway conventions](CODING_CONVENTIONS.md),
-[MQTT topic contract](../docs/mqtt-topic-contract.md), and
-[telemetry API contract](../docs/telemetry-api-contract.md) govern the next
-reliability and deployment increments.
+Keep a failed database and its WAL files for diagnosis. No automatic repair path
+exists. See [Gateway Coding Conventions](CODING_CONVENTIONS.md).

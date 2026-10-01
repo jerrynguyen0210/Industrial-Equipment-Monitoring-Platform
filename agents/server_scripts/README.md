@@ -1,14 +1,13 @@
-# Run the stack on this machine
+# Run the local stack
 
-1. Open a terminal in the repository root.
-
-2. Start and verify the complete local stack:
+1. Open a terminal at the repository root.
+2. Start the stack:
 
    ```sh
    ./agents/server_scripts/run-stack.sh
    ```
 
-   Enter the server and ESP32 addresses when prompted. For an unattended start:
+3. Enter the server and ESP32 LAN addresses. For unattended startup:
 
    ```sh
    ./agents/server_scripts/run-stack.sh \
@@ -16,28 +15,16 @@
      --esp32-address 192.168.0.114
    ```
 
-3. Configure the ESP32 firmware MQTT host as `192.168.0.50`, then open the
-   dashboard address printed by the script.
-
-4. Reserve `192.168.0.114` for the ESP32 in the router or configure it on the
-   device network. The launcher validates and reports this address but cannot
-   assign the ESP32's Wi-Fi address.
-
-5. Check status or recent logs:
+4. Configure the ESP32 MQTT and heartbeat host as the server address, then open
+   the dashboard URL printed by the script.
+5. Reserve the ESP32 address in the router. The launcher validates this address
+   but cannot assign it.
+6. Operate the stack:
 
    ```sh
    ./agents/server_scripts/run-stack.sh status
    ./agents/server_scripts/run-stack.sh logs
-   ```
-
-6. Stop services without deleting data:
-
-   ```sh
    ./agents/server_scripts/run-stack.sh stop
    ```
 
-7. On a slower machine, increase the startup timeout:
-
-   ```sh
-   ./agents/server_scripts/run-stack.sh start --wait-timeout 300
-   ```
+Use `start --wait-timeout 300` on a slower host. Run `--help` for all options.

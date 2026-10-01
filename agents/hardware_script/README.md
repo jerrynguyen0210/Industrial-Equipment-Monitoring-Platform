@@ -1,24 +1,29 @@
 # Build and flash the ESP32
 
-Connect one ESP32-DevKitC-compatible board by USB. From the repository root,
-run as your normal user:
+1. Connect one ESP32-DevKitC-compatible board with a data-capable USB cable.
+2. From the repository root, run:
 
-```sh
-./agents/hardware_script/compile-and-flash-esp32.sh --monitor
-```
+   ```sh
+   ./agents/hardware_script/compile-and-flash-esp32.sh --monitor
+   ```
 
-The script installs or reuses a shallow ESP-IDF 5.5.4 checkout on supported
-Linux hosts, opens `menuconfig` when firmware settings need attention, builds the
-firmware, and flashes the selected board. In `menuconfig`, set the registered
-device ID (also the MQTT username), Wi-Fi settings, the broker's reachable LAN
-address, the MQTT password, and the sensor source. The MQTT password must match
-the account provisioned for that device; for the lab demo it is in the ignored
-`secrets/mosquitto/device-demo-001.password` file.
+3. On the first run, set these values in `menuconfig`:
 
-If multiple serial devices are connected, pass `--port /dev/ttyUSB0` (or the
-correct device). Use `--configure` to reopen `menuconfig`. Run `--help` for all
-options. The old `Setup_Guide/compile-and-flash-esp32.sh` path still works.
+   - Device ID, exactly matching the dashboard registration.
+   - Wi-Fi SSID and password.
+   - Server LAN address for MQTT and optional heartbeats.
+   - Device password, exactly matching the registration password.
+   - Temperature source and GPIO.
 
-Keep `firmware/sdkconfig` and `firmware/build/` private: both contain the MQTT
-password, and the firmware image also contains the Wi-Fi passphrase. Flashing
-updates the application without intentionally erasing the ESP32's NVS partition.
+4. Save and exit. The script installs or reuses ESP-IDF 5.5.4, builds, flashes,
+   and opens the serial monitor.
+
+If several serial devices exist, add `--port /dev/ttyUSB0`. Use `--configure` to
+open `menuconfig` again and `--help` for all options.
+
+The Device ID is also the MQTT username. Dashboard registration automatically
+creates the matching broker account, so `add_device.py` is not required.
+
+Keep `firmware/sdkconfig`, `firmware/build/`, and firmware images private because
+they contain Wi-Fi and MQTT credentials. Normal flashing preserves the ESP32 NVS
+boot counter.
