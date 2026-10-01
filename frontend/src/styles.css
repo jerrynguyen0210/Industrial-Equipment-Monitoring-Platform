@@ -720,6 +720,147 @@ h2 {
   font-size: 0.9rem;
 }
 
+.device-management-grid {
+  display: grid;
+  grid-template-columns: minmax(16rem, 24rem) minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.device-form {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.existing-mqtt-form {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #d8e1e8;
+}
+
+.device-form label {
+  margin-top: 0.55rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.device-form input,
+.device-form select {
+  width: 100%;
+  min-height: 2.65rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #b8c8d5;
+  border-radius: 0.45rem;
+  background: white;
+  color: #1a293b;
+  font: inherit;
+}
+
+.device-form .primary-link {
+  justify-content: center;
+  margin-top: 0.45rem;
+}
+
+.device-form button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.form-help {
+  margin: 0.55rem 0 0;
+  color: #5a6c7c;
+  font-size: 0.84rem;
+}
+
+.form-success {
+  color: #176b4a;
+}
+
+.managed-devices {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0;
+  list-style: none;
+}
+
+.managed-devices li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem;
+  border: 1px solid #e1e8ef;
+  border-radius: 0.55rem;
+}
+
+.managed-devices li > div:first-child {
+  flex: 1 1 10rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.remove-device-button {
+  align-self: center;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid #be6d59;
+  border-radius: 0.45rem;
+  background: white;
+  color: #a34927;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.remove-device-button:hover:not(:disabled) {
+  background: #fff1ec;
+}
+
+.remove-device-button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.managed-devices li div,
+.managed-device-presence,
+.equipment-indicators {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+}
+
+.managed-devices li span:not(.presence-badge),
+.managed-devices small {
+  color: #5a6c7c;
+  font-size: 0.8rem;
+}
+
+.presence-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.presence-badge::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.presence-badge.online {
+  color: #176b4a;
+}
+.presence-badge.offline {
+  color: #a34927;
+}
+
 .status {
   display: flex;
   align-items: flex-start;
@@ -855,6 +996,9 @@ h2 {
 }
 
 @media (max-width: 850px) {
+  .device-management-grid {
+    grid-template-columns: 1fr;
+  }
   .history-controls {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

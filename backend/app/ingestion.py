@@ -1,8 +1,9 @@
 """Transactional telemetry classification with PostgreSQL-authoritative identity."""
 
 import logging
+from datetime import timedelta
 
-from sqlalchemy import Engine, select
+from sqlalchemy import Engine, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import DataError
 from sqlalchemy.orm import Session
@@ -127,6 +128,15 @@ def ingest_batch(
                 evaluate_accepted_reading(
                     session, item, inserted.id, inserted.backend_received_at, states
                 )
+                # A gateway may forward queued readings long after an ESP32
+                # disconnects. Only recent gateway contact counts as presence.
+                received_age = inserted.backend_received_at - item.gateway_received_at
+                if timedelta(0) <= received_age <= timedelta(seconds=90):
+                    session.execute(
+                        update(Device)
+                        .where(Device.device_id == item.device_id)
+                        .values(last_seen_at=func.clock_timestamp())
+                    )
             results.append(
                 TelemetryResponseItem(
                     **identity,

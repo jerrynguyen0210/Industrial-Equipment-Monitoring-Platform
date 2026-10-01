@@ -11,6 +11,7 @@ import { PlatformStatus } from "./PlatformStatus";
 import { EquipmentStatus } from "./EquipmentStatus";
 import { History } from "./History";
 import { AlertEpisodes } from "./AlertEpisodes";
+import { DeviceManagement } from "./DeviceManagement";
 
 const navigationEvent = "iemp:navigate";
 
@@ -169,9 +170,11 @@ export function App() {
       ? "Overview"
       : path === "/history"
         ? "History"
-        : path === "/status"
-          ? "Service status"
-          : "Page not found";
+        : path === "/devices"
+          ? "Device management"
+          : path === "/status"
+            ? "Service status"
+            : "Page not found";
   const previousPath = useRef(path);
 
   useEffect(() => {
@@ -216,6 +219,16 @@ export function App() {
             History
           </InternalLink>
           <InternalLink
+            to="/devices"
+            className="nav-link"
+            current={path === "/devices"}
+          >
+            <span className="nav-icon" aria-hidden="true">
+              ▣
+            </span>
+            Devices
+          </InternalLink>
+          <InternalLink
             to="/status"
             className="nav-link"
             current={path === "/status"}
@@ -243,6 +256,8 @@ export function App() {
             <Overview />
           ) : path === "/history" ? (
             <HistoryPage />
+          ) : path === "/devices" ? (
+            <DeviceManagement />
           ) : path === "/status" ? (
             <ServiceStatus />
           ) : (

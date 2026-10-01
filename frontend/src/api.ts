@@ -21,7 +21,20 @@ export type LatestReading = {
 export type DeviceStatus = {
   device_id: string;
   name: string;
+  gateway_id: string;
+  enabled: boolean;
+  online: boolean;
+  last_seen_at: string | null;
   latest_reading: LatestReading | null;
+};
+
+export type Gateway = { gateway_id: string; name: string };
+
+export type DeviceRegistration = {
+  device_id: string;
+  gateway_id: string;
+  name: string;
+  password: string;
 };
 
 export type HistoryPoint = {
@@ -143,6 +156,14 @@ function isDeviceStatus(value: unknown): value is DeviceStatus {
     typeof value.device_id === "string" &&
     "name" in value &&
     typeof value.name === "string" &&
+    "gateway_id" in value &&
+    typeof value.gateway_id === "string" &&
+    "enabled" in value &&
+    typeof value.enabled === "boolean" &&
+    "online" in value &&
+    typeof value.online === "boolean" &&
+    "last_seen_at" in value &&
+    (value.last_seen_at === null || isTimestamp(value.last_seen_at)) &&
     "latest_reading" in value &&
     (value.latest_reading === null || isLatestReading(value.latest_reading))
   );
@@ -170,6 +191,127 @@ export async function getDevices(signal: AbortSignal): Promise<DeviceStatus[]> {
   }
 
   return body.devices;
+}
+
+export async function getGateways(signal: AbortSignal): Promise<Gateway[]> {
+  const response = await fetch(`${apiBaseUrl}/v1/gateways`, {
+    signal,
+    cache: "no-store",
+  });
+  if (!response.ok)
+    throw new Error(`Gateway request failed with HTTP ${response.status}`);
+  const body: unknown = await response.json();
+  if (
+    typeof body !== "object" ||
+    body === null ||
+    !("gateways" in body) ||
+    !Array.isArray(body.gateways) ||
+    !body.gateways.every(
+      (item: unknown) =>
+        typeof item === "object" &&
+        item !== null &&
+        "gateway_id" in item &&
+        typeof item.gateway_id === "string" &&
+        "name" in item &&
+        typeof item.name === "string",
+    )
+  )
+    throw new Error("Invalid gateway response");
+  return body.gateways;
+}
+
+export async function registerDevice(
+  registration: DeviceRegistration,
+): Promise<void> {
+  const response = await fetch(`${apiBaseUrl}/v1/devices`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(registration),
+  });
+  if (response.status === 409) {
+    const reason = await responseReason(response);
+    throw new Error(
+      reason === "mqtt_account_exists"
+        ? "An MQTT account already uses that Device ID. Use its matching password or choose another ID."
+        : "That device ID is already registered.",
+    );
+  }
+  if (response.status === 404)
+    throw new Error("The selected gateway is unavailable.");
+  if (response.status === 503)
+    throw new Error(
+      "MQTT broker or device registry is unavailable. Try again.",
+    );
+  if (!response.ok)
+    throw new Error("Registration failed. Check the details and try again.");
+}
+
+async function responseReason(response: Response): Promise<string | null> {
+  try {
+    const body: unknown = await response.json();
+    if (
+      typeof body === "object" &&
+      body !== null &&
+      "detail" in body &&
+      typeof body.detail === "object" &&
+      body.detail !== null &&
+      "reason" in body.detail &&
+      typeof body.detail.reason === "string"
+    )
+      return body.detail.reason;
+  } catch {
+    // The HTTP status still gives a useful fallback message.
+  }
+  return null;
+}
+
+export async function configureExistingMqtt(
+  deviceId: string,
+  password: string,
+): Promise<void> {
+  const response = await fetch(
+    `${apiBaseUrl}/v1/devices/${encodeURIComponent(deviceId)}/mqtt`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    },
+  );
+  if (response.status === 401)
+    throw new Error(
+      "Password does not match this registration. If the device has no saved history, remove and register it again with the desired password.",
+    );
+  if (response.status === 409)
+    throw new Error(
+      "An MQTT account already uses this Device ID with a different password or policy.",
+    );
+  if (response.status === 503)
+    throw new Error(
+      "MQTT broker or device registry is unavailable. Try again.",
+    );
+  if (!response.ok) throw new Error("MQTT setup failed. Try again.");
+}
+
+export async function removeDevice(deviceId: string): Promise<void> {
+  const response = await fetch(
+    `${apiBaseUrl}/v1/devices/${encodeURIComponent(deviceId)}`,
+    { method: "DELETE" },
+  );
+  if (response.status === 404)
+    throw new Error("This device is no longer registered.");
+  if (response.status === 409) {
+    const reason = await responseReason(response);
+    throw new Error(
+      reason === "mqtt_account_conflict"
+        ? "This device's MQTT account needs administrator attention before removal."
+        : "This device has saved readings or alerts, so removal is blocked.",
+    );
+  }
+  if (response.status === 503)
+    throw new Error(
+      "MQTT broker or device registry is unavailable. Try again.",
+    );
+  if (!response.ok) throw new Error("Device removal failed. Try again.");
 }
 
 function isTimestamp(value: unknown): value is string {

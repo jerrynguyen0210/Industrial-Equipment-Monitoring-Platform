@@ -22,8 +22,21 @@ class LatestReading(BaseModel):
 class DeviceStatus(BaseModel):
     device_id: str
     name: str
+    gateway_id: str
+    enabled: bool
+    online: bool
+    last_seen_at: datetime | None
     latest_reading: LatestReading | None
 
 
 class DeviceStatusList(BaseModel):
     devices: list[DeviceStatus]
+
+
+class GatewayOption(BaseModel):
+    gateway_id: str
+    name: str
+
+
+class GatewayList(BaseModel):
+    gateways: list[GatewayOption]

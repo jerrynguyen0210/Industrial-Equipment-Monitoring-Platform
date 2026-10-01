@@ -19,8 +19,24 @@ function response(body: unknown, status = 200) {
 
 const devices = {
   devices: [
-    { device_id: "device-1", name: "Motor", latest_reading: null },
-    { device_id: "device-2", name: "Pump", latest_reading: null },
+    {
+      device_id: "device-1",
+      name: "Motor",
+      gateway_id: "gateway-1",
+      enabled: true,
+      online: false,
+      last_seen_at: null,
+      latest_reading: null,
+    },
+    {
+      device_id: "device-2",
+      name: "Pump",
+      gateway_id: "gateway-1",
+      enabled: true,
+      online: false,
+      last_seen_at: null,
+      latest_reading: null,
+    },
   ],
 };
 

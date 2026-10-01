@@ -1,8 +1,9 @@
 # Minimum equipment registry
 
 The registry stores the ownership chain needed by telemetry validation:
-`sites` -> `gateways` -> `devices`. It contains no readings, credentials, users,
-or HTTP endpoints. The backend [setup commands](../backend/README.md#registry-migrations-and-demo-seed)
+`sites` -> `gateways` -> `devices`. The device row now also holds a salted
+heartbeat password hash and last server contact time. Readings remain in the
+telemetry table. The backend [setup commands](../backend/README.md#registry-migrations-and-demo-seed)
 apply its Alembic migration and explicitly seed the demo hierarchy.
 
 ## Schema and identifiers
@@ -11,7 +12,7 @@ apply its Alembic migration and explicitly seed the demo hierarchy.
 | --- | --- | --- | --- |
 | `sites` | `site_id VARCHAR(128)` | None | `name VARCHAR(200)`, `enabled BOOLEAN DEFAULT true` |
 | `gateways` | `gateway_id VARCHAR(128)` | `site_id` references `sites.site_id` | `name VARCHAR(200)`, `enabled BOOLEAN DEFAULT true` |
-| `devices` | `device_id VARCHAR(128)` | `gateway_id` references `gateways.gateway_id` | `name VARCHAR(200)`, `enabled BOOLEAN DEFAULT true` |
+| `devices` | `device_id VARCHAR(128)` | `gateway_id` references `gateways.gateway_id` | `name VARCHAR(200)`, `enabled BOOLEAN DEFAULT true`, nullable `password_hash` and `last_seen_at` |
 
 Identifiers are nonempty, case-sensitive strings with a registry storage limit
 of 128 characters. They are stored and compared exactly, without trimming or
@@ -56,6 +57,9 @@ enabled states during writes.
 ## Migration and deployment
 
 Revision `0001_registry` creates sites, then gateways, then devices and indexes.
+Revision `0005_device_presence` adds the device credential hash and last contact
+columns. See the [device management API](device-status-api.md) for registration
+and heartbeat behavior.
 Alembic uses `app.config.database_conninfo()` through the SQLAlchemy engine:
 nonempty `DATABASE_URL` wins; otherwise all five `PG*` settings are required.
 SSL and other libpq URL options are retained; SQLAlchemy sessions enforce UTC for

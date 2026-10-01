@@ -79,6 +79,19 @@ services:
       PGDATABASE: ${POSTGRES_DB:-iemp}
       PGUSER: ${POSTGRES_USER:-iemp}
       PGPASSWORD: ${POSTGRES_PASSWORD:-iemp-local-only}
+      MQTT_ADMIN_PASSWORD_FILE: /mosquitto-auth/admin.password
+      MQTT_LEGACY_PASSWORD_FILE: /mosquitto-auth/passwd
+      MQTT_HOST: mosquitto
+      MQTT_PORT: "1883"
+    group_add:
+      - "1883"
+    volumes:
+      - type: bind
+        source: ${MQTT_AUTH_DIR:-./secrets/mosquitto}
+        target: /mosquitto-auth
+        read_only: true
+        bind:
+          create_host_path: false
     ports:
       - "${BACKEND_BIND_ADDRESS:-127.0.0.1}:${BACKEND_PORT:-8000}:8000"
     depends_on:

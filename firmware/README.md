@@ -22,6 +22,7 @@ temperature for a board without the probe.
 | `components/temperature_input/` | Shared validation for typed Celsius values. |
 | `components/web_input/` | Optional ESP32-hosted temperature entry page. |
 | `components/telemetry/` | Schema v1 JSON, clock quality, queue, and MQTT publisher. |
+| `components/heartbeat/` | Optional 30-second direct backend presence report. |
 | `tests/` | Host tests for boot IDs, sequences, and sensor error handling. |
 
 ## Configure, build, and flash
@@ -37,8 +38,16 @@ idf.py -p /dev/ttyUSB0 flash monitor
 
 Under **Industrial Equipment Monitoring firmware**, set a registered device ID,
 the 2.4 GHz Wi-Fi SSID, its WPA2/WPA3 passphrase, the broker's LAN address, and
-the device-specific MQTT password. The MQTT username is the device ID. Provision
-the account and write ACL using [the topic contract](../docs/mqtt-topic-contract.md).
+the device-specific MQTT password. The MQTT username is the device ID. Register
+the device on the dashboard with the same Device ID and password; registration
+creates its broker account automatically. The broker limits each device to its
+own telemetry topic.
+To report online status even without sensor readings, set **Backend LAN hostname
+or IPv4 address for device heartbeats** and the backend HTTP port (default 8000).
+Register the same device ID and password on the dashboard's Device Management
+page. The heartbeat runs every 30 seconds after Wi-Fi starts and the backend
+marks it offline 90 seconds after the last accepted heartbeat or recent reading.
+The direct heartbeat uses unencrypted HTTP, so use it only on a trusted lab LAN.
 The device ID must be one MQTT topic level, 1–128 bytes, with no `/`, `+`, `#`,
 or control characters. The
 SSID must be 1–32 bytes and the passphrase 8–63 bytes. The checked-in

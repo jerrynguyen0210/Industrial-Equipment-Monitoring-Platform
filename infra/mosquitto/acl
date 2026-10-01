@@ -1,9 +1,6 @@
-# Prototype identities. Add one explicit writer rule per provisioned device.
-user device-demo-001
-topic write equipment/device-demo-001/telemetry
-
-user esp_demo_pi5
-topic write equipment/esp_demo_pi5/telemetry
+# Authenticated devices can publish only to the topic matching their username.
+# Create a password-file account with the registered Device ID as username.
+pattern write equipment/%u/telemetry
 
 user gateway-demo-001
 topic read equipment/+/telemetry

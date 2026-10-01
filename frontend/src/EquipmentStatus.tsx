@@ -51,10 +51,19 @@ function ReadingCard({ device }: { device: Device }) {
           <h3 id={`device-${device.device_id}`}>{device.name}</h3>
           <p className="device-id">{device.device_id}</p>
         </div>
-        <span className={`data-indicator ${reading ? "available" : "missing"}`}>
-          <span aria-hidden="true" />
-          {reading ? "Recorded reading" : "No reading"}
-        </span>
+        <div className="equipment-indicators">
+          <span
+            className={`presence-badge ${device.online ? "online" : "offline"}`}
+          >
+            {device.online ? "Running · online" : "Offline"}
+          </span>
+          <span
+            className={`data-indicator ${reading ? "available" : "missing"}`}
+          >
+            <span aria-hidden="true" />
+            {reading ? "Recorded reading" : "No reading"}
+          </span>
+        </div>
       </div>
 
       <div className="reading-value">
@@ -73,7 +82,9 @@ function ReadingCard({ device }: { device: Device }) {
           : "No valid temperature reading has been recorded."}
       </p>
       <p className="sensor-state-note">
-        Live sensor connection status is unavailable.
+        {device.last_seen_at
+          ? `Last server contact ${new Date(device.last_seen_at).toLocaleString()}.`
+          : "No server contact recorded yet."}
       </p>
       <p className="alert-count">Active alerts: unavailable</p>
     </article>
@@ -164,7 +175,7 @@ export function EquipmentStatus() {
           status here.
         </p>
       )}
-      {devices.length > 0 && (
+      {devices.length > 0 && !error && (
         <div className="equipment-list">
           {devices.map((device) => (
             <ReadingCard key={device.device_id} device={device} />

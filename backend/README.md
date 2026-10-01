@@ -21,7 +21,11 @@ runs as UID/GID 10001 and has no application volume or host-source mount.
 | Endpoint | Meaning |
 | --- | --- |
 | `POST /api/v1/telemetry/batches` | Bearer-authenticated batch ingestion; ordered per-item outcomes after commit. |
-| `GET /api/v1/devices` | Registered devices with each device's newest reading by event time; HTTP 503 if the database is unavailable. |
+| `GET /api/v1/devices` | Registered devices with each device's newest reading and recent server contact status; HTTP 503 if the database is unavailable. |
+| `GET /api/v1/gateways` | Enabled gateway choices for device registration. |
+| `POST /api/v1/devices` | Register a device with a salted password hash. |
+| `DELETE /api/v1/devices/{device_id}` | Remove an unused registration; devices with saved history return 409. |
+| `POST /api/v1/devices/{device_id}/heartbeat` | Authenticated device contact; HTTP 204 on success. |
 | `GET /api/v1/devices/{device_id}/telemetry` | Bounded temperature history in event-time order; see the [history API](../docs/history-api.md). |
 | `GET /health` | HTTP 200 with `{"status":"ok"}` while the API can serve requests. No dependency check. |
 | `GET /ready` | HTTP 200 with `{"status":"ready","database":"ok"}` after an authenticated `SELECT 1`; HTTP 503 with `{"status":"unavailable","database":"unavailable"}` on database failure. |
@@ -74,8 +78,10 @@ existing ownership; a conflicting parent assignment fails and rolls back the
 whole seed. Migration and seed are explicit deployment steps, never API startup
 side effects. Run migrations once before enabling a registry or telemetry consumer.
 Revision `0003_event_time_index` adds an expression index for dashboard reads.
-The current head, `0004_temperature_alerts`, adds per-device alert state and
+Revision `0004_temperature_alerts` adds per-device alert state and
 episode tables for the [prototype temperature alert flow](../docs/temperature-alert-flow.md).
+The current head, `0005_device_presence`, adds device password hashes and last
+contact timestamps for [device management](../docs/device-status-api.md).
 Apply migrations before deploying this backend version. Downgrading to
 `0003_event_time_index` removes alert state and episodes while retaining telemetry.
 

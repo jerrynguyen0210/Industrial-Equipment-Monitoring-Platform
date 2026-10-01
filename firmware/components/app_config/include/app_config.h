@@ -9,6 +9,8 @@ typedef struct {
   const char *mqtt_host;
   int mqtt_port;
   const char *mqtt_password;
+  const char *backend_host;
+  int backend_port;
   const char *web_input_key;
 } app_config_t;
 
