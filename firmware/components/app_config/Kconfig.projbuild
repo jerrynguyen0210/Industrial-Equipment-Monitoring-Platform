@@ -48,7 +48,13 @@ menu "Industrial Equipment Monitoring firmware"
 
     choice IEMP_TEMPERATURE_SOURCE
         prompt "Temperature source"
-        default IEMP_DS18B20_SENSOR
+        default IEMP_TEMPERATURE_DISABLED
+
+        config IEMP_TEMPERATURE_DISABLED
+            bool "Disabled (no temperature sensor installed)"
+            help
+                Do not read a sensor or publish temperature telemetry. Select
+                another source when a probe or manual input is ready.
 
         config IEMP_DS18B20_SENSOR
             bool "DS18B20 temperature probe"

@@ -11,7 +11,7 @@
 #include "temperature_input.h"
 #include "temperature_sensor.h"
 
-#if !CONFIG_IEMP_WEB_SENSOR_INPUT
+#if !CONFIG_IEMP_TEMPERATURE_DISABLED && !CONFIG_IEMP_WEB_SENSOR_INPUT
 static const char *TAG = "sampling";
 #endif
 
@@ -92,7 +92,7 @@ static void manual_input_task(void *arg) {
 }
 #endif
 
-#if !CONFIG_IEMP_MANUAL_SENSOR_INPUT && !CONFIG_IEMP_WEB_SENSOR_INPUT
+#if CONFIG_IEMP_DS18B20_SENSOR || CONFIG_IEMP_DEMO_SYNTHETIC_SENSOR
 static void sampling_task(void *arg) {
   (void)arg;
   const TickType_t period = pdMS_TO_TICKS(CONFIG_IEMP_SAMPLE_INTERVAL_MS);
@@ -136,7 +136,7 @@ static void sampling_task(void *arg) {
 #endif
 
 esp_err_t sampling_start(void) {
-#if CONFIG_IEMP_WEB_SENSOR_INPUT
+#if CONFIG_IEMP_TEMPERATURE_DISABLED || CONFIG_IEMP_WEB_SENSOR_INPUT
   return ESP_ERR_NOT_SUPPORTED;
 #else
 #if CONFIG_IEMP_MANUAL_SENSOR_INPUT

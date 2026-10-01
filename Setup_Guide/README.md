@@ -21,7 +21,7 @@ After connecting an ESP32 by USB, install the pinned compiler, configure the
 firmware on first use, build it, and flash the board with:
 
 ```sh
-./Setup_Guide/compile-and-flash-esp32.sh --monitor
+./agents/hardware_script/compile-and-flash-esp32.sh --monitor
 ```
 
 See [the hardware and gateway guide](02-hardware-and-gateway.md#automated-firmware-build-and-flash)
