@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# Install the pinned ESP-IDF toolchain, configure the IEMP firmware, securely
-# prompt for its MQTT password, build it, and flash one USB-connected ESP32.
+# Install the pinned ESP-IDF toolchain, configure the IEMP firmware, build it,
+# and flash one USB-connected ESP32.
 
 set -Eeuo pipefail
 umask 077
@@ -33,8 +33,8 @@ usage() {
 Usage: agents/hardware_script/compile-and-flash-esp32.sh [options]
 
 Install ESP-IDF 5.5.4, compile the IEMP firmware, and flash a USB-connected
-ESP32. The first run opens menuconfig for device, Wi-Fi, broker, and sensor setup.
-Every run asks for the device's MQTT password without displaying it.
+ESP32. The first run opens menuconfig for device, Wi-Fi, broker, and sensor setup,
+including the device's MQTT password.
 
 Options:
   --port DEVICE          Serial device to flash, such as /dev/ttyUSB0.
@@ -95,9 +95,6 @@ case "$(uname -m)" in
 esac
 ((EUID != 0)) || fail "Run this script as your normal user; it invokes sudo only for host packages"
 [[ -f "${FIRMWARE_DIR}/CMakeLists.txt" ]] || fail "Cannot find the firmware project at ${FIRMWARE_DIR}"
-[[ -t 0 && -t 1 && -r /dev/tty && -w /dev/tty ]] ||
-  fail "An interactive terminal is required to enter the MQTT password"
-
 if [[ -z "$ESP_IDF_DIR" ]]; then
   [[ -n "${HOME:-}" ]] || fail "HOME is not set; pass --idf-dir explicitly"
   ESP_IDF_DIR="${XDG_DATA_HOME:-${HOME}/.local/share}/iemp/esp-idf-v${IDF_VERSION}"
@@ -185,7 +182,7 @@ install_esp_idf() {
 }
 
 configuration_is_valid() {
-  IEMP_SDKCONFIG="${FIRMWARE_DIR}/sdkconfig" IEMP_REQUIRE_MQTT_PASSWORD="${1:-true}" python3 <<'PY'
+  IEMP_SDKCONFIG="${FIRMWARE_DIR}/sdkconfig" python3 <<'PY'
 import json
 import os
 from pathlib import Path
@@ -230,7 +227,7 @@ if not 8 <= len(wifi_password.encode()) <= 63:
     invalid.append("Wi-Fi passphrase")
 if not mqtt_host:
     invalid.append("MQTT host")
-if os.environ["IEMP_REQUIRE_MQTT_PASSWORD"] == "true" and not mqtt_password:
+if not mqtt_password or any(not 32 <= ord(char) <= 126 for char in mqtt_password):
     invalid.append("MQTT password")
 if string_value("CONFIG_IDF_TARGET") != "esp32":
     invalid.append("ESP-IDF target")
@@ -247,7 +244,7 @@ PY
 }
 
 configure_firmware() {
-  if $FORCE_CONFIGURE || ! configuration_is_valid false; then
+  if $FORCE_CONFIGURE || ! configuration_is_valid; then
     [[ -t 0 && -t 1 ]] ||
       fail "Firmware configuration is missing or invalid; rerun in an interactive terminal"
     log "Opening firmware configuration; save and exit when the settings are complete"
@@ -255,52 +252,6 @@ configure_firmware() {
   else
     log "Reusing validated firmware/sdkconfig"
   fi
-}
-
-prompt_mqtt_password() {
-  local sdkconfig="${FIRMWARE_DIR}/sdkconfig"
-
-  [[ -f "$sdkconfig" ]] || fail "Firmware configuration was not saved; rerun with --configure"
-  # Python reads directly from the terminal, keeping the secret out of shell
-  # variables, argv, and the exported environment.
-  python3 -c '
-import getpass
-import json
-import os
-import re
-import sys
-import tempfile
-from pathlib import Path
-
-path = Path(sys.argv[1])
-try:
-    password = getpass.getpass("Device MQTT password: ")
-    confirmation = getpass.getpass("Confirm device MQTT password: ")
-except (EOFError, OSError):
-    raise SystemExit("Could not read MQTT password from the terminal") from None
-if password != confirmation:
-    raise SystemExit("MQTT passwords did not match")
-if not password or any(not 32 <= ord(char) <= 126 for char in password):
-    raise SystemExit("MQTT password must use printable ASCII characters")
-
-contents = path.read_text(encoding="utf-8")
-setting = "CONFIG_IEMP_MQTT_PASSWORD=" + json.dumps(password)
-contents, count = re.subn(
-    r"^CONFIG_IEMP_MQTT_PASSWORD=.*$", lambda match: setting,
-    contents, flags=re.MULTILINE,
-)
-if count == 0:
-    contents = contents.rstrip("\n") + "\n" + setting + "\n"
-
-fd, temporary = tempfile.mkstemp(prefix=".sdkconfig-", dir=path.parent)
-try:
-    with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as output:
-        output.write(contents)
-    os.replace(temporary, path)
-except BaseException:
-    os.unlink(temporary)
-    raise
-' "$sdkconfig" || fail "Could not save MQTT password in firmware/sdkconfig"
   configuration_is_valid || fail "Firmware configuration is incomplete; rerun with --configure"
 }
 
@@ -368,5 +319,4 @@ install_esp_idf
 configure_firmware
 detect_serial_port
 verify_serial_access
-prompt_mqtt_password
 build_and_flash

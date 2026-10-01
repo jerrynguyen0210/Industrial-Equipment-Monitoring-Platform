@@ -147,8 +147,8 @@ On Raspberry Pi OS, Debian, and Ubuntu, the script installs the build packages,
 clones the pinned ESP-IDF 5.5.4 release under the user's local data directory,
 installs the ESP32 compiler, builds the firmware, detects the serial port, and
 flashes the board. The first run opens `menuconfig` for the required device,
-Wi-Fi, broker, and sensor settings. Every run securely prompts twice for the
-device's MQTT password after `menuconfig`; leave that field empty in the menu.
+Wi-Fi, broker, MQTT password, and sensor settings. Enter the device's MQTT
+password in `menuconfig` and save the configuration before exiting.
 Later runs validate and reuse the ignored `firmware/sdkconfig`, making
 compilation and upload a single command. The script
 never runs a full-chip erase or intentionally erases NVS; normal flashing only
