@@ -266,6 +266,140 @@ def main() -> None:
             )
             require(sql(registry_query) == "device-demo-001", "Registry seed failed")
             print("PASS: packaged migration and repeatable registry seed", flush=True)
+            auto_id = f"auto-{marker}"
+            auto_password = secrets.token_urlsafe(24)
+            auto_password_file = auth_dir / f"{auto_id}.password"
+            auto_password_file.write_text(auto_password + "\n", encoding="utf-8")
+            auto_password_file.chmod(0o600)
+            opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+            registration_request = urllib.request.Request(
+                url("backend", 8000, "/api/v1/devices"),
+                data=json.dumps(
+                    {
+                        "device_id": auto_id,
+                        "gateway_id": "gateway-demo-001",
+                        "name": "Automatically provisioned ESP32",
+                        "password": auto_password,
+                    }
+                ).encode(),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with opener.open(registration_request, timeout=12) as response:
+                require(response.status == 201, "Device registration failed")
+            mqtt(
+                auto_id,
+                "mosquitto_pub",
+                "-V",
+                "5",
+                "-t",
+                f"equipment/{auto_id}/telemetry",
+                "-m",
+                "{}",
+                "-q",
+                "1",
+            )
+            auto_wrong_session = f"wrong-auto-{marker}"
+            mqtt(
+                "gateway-demo-001",
+                "mosquitto_sub",
+                "-c",
+                "-i",
+                auto_wrong_session,
+                "-E",
+                "-t",
+                "equipment/other-device/telemetry",
+                "-q",
+                "1",
+            )
+            mqtt(
+                auto_id,
+                "mosquitto_pub",
+                "-V",
+                "5",
+                "-t",
+                "equipment/other-device/telemetry",
+                "-m",
+                "{}",
+                "-q",
+                "1",
+                check=False,
+            )
+            wrong_delivery = mqtt(
+                "gateway-demo-001",
+                "mosquitto_sub",
+                "-c",
+                "-i",
+                auto_wrong_session,
+                "-t",
+                "equipment/other-device/telemetry",
+                "-q",
+                "1",
+                "-C",
+                "1",
+                "-W",
+                "2",
+                check=False,
+            )
+            require(
+                wrong_delivery.returncode == 27 and not wrong_delivery.stdout,
+                "New device could publish to another topic",
+            )
+            remove_request = urllib.request.Request(
+                url("backend", 8000, f"/api/v1/devices/{auto_id}"), method="DELETE"
+            )
+            with opener.open(remove_request, timeout=12) as response:
+                require(response.status == 204, "Device removal failed")
+            removed_login = mqtt(
+                auto_id,
+                "mosquitto_pub",
+                "-t",
+                f"equipment/{auto_id}/telemetry",
+                "-m",
+                "{}",
+                "-q",
+                "1",
+                check=False,
+            )
+            require(
+                removed_login.returncode != 0, "Removed device still has MQTT access"
+            )
+            print(
+                "PASS: registration provisions and removal revokes MQTT access",
+                flush=True,
+            )
+            legacy_request = urllib.request.Request(
+                url("backend", 8000, "/api/v1/devices"),
+                data=json.dumps(
+                    {
+                        "device_id": "health",
+                        "gateway_id": "gateway-demo-001",
+                        "name": "Existing broker account",
+                        "password": (auth_dir / "health.password").read_text().strip(),
+                    }
+                ).encode(),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with opener.open(legacy_request, timeout=12) as response:
+                require(response.status == 201, "Existing MQTT account was rejected")
+            require(
+                sql("SELECT mqtt_managed FROM devices WHERE device_id = 'health'")
+                == "f",
+                "Existing MQTT account was marked as managed",
+            )
+            with opener.open(
+                urllib.request.Request(
+                    url("backend", 8000, "/api/v1/devices/health"), method="DELETE"
+                ),
+                timeout=12,
+            ) as response:
+                require(response.status == 204, "Existing-account removal failed")
+            mqtt("health", "mosquitto_pub", "-t", "_health/legacy", "-m", "ok")
+            print(
+                "PASS: registration accepts a matching existing MQTT account",
+                flush=True,
+            )
             telemetry_topic = "equipment/device-demo-001/telemetry"
             event = json.loads(
                 (ROOT / "infra/mosquitto/sample-event.json").read_text(encoding="utf-8")

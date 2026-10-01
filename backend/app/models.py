@@ -17,6 +17,7 @@ from sqlalchemy import (
     SmallInteger,
     String,
     UniqueConstraint,
+    false,
     func,
     text,
     true,
@@ -84,6 +85,11 @@ class Device(Base):
     name: Mapped[str] = mapped_column(String(200))
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
     gateway: Mapped[Gateway] = relationship(back_populates="devices")
+    password_hash: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    mqtt_managed: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
+    last_seen_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 
 
 class Telemetry(Base):

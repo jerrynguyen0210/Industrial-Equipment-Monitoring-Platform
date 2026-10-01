@@ -6,6 +6,7 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_system.h"
+#include "heartbeat.h"
 #include "identity.h"
 #include "nvs_flash.h"
 #include "sampling.h"
@@ -61,6 +62,10 @@ void app_main(void) {
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "startup_failed stage=wifi error=%s", esp_err_to_name(err));
   } else {
+    err = heartbeat_start(&config);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "startup_failed stage=heartbeat error=%s", esp_err_to_name(err));
+    }
     err = telemetry_start(&config, &s_identity);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "startup_failed stage=telemetry error=%s", esp_err_to_name(err));

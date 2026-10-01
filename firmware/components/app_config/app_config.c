@@ -47,6 +47,10 @@ esp_err_t app_config_load(app_config_t *out) {
     ESP_LOGE(TAG, "invalid_config field=mqtt_password");
     return ESP_ERR_INVALID_ARG;
   }
+  if (strlen(CONFIG_IEMP_BACKEND_HOST) > 253) {
+    ESP_LOGE(TAG, "invalid_config field=backend_host");
+    return ESP_ERR_INVALID_ARG;
+  }
 
 #if CONFIG_IEMP_WEB_SENSOR_INPUT
   const size_t web_key_length = strlen(CONFIG_IEMP_WEB_INPUT_KEY);
@@ -70,6 +74,8 @@ esp_err_t app_config_load(app_config_t *out) {
       .mqtt_host = CONFIG_IEMP_MQTT_HOST,
       .mqtt_port = CONFIG_IEMP_MQTT_PORT,
       .mqtt_password = CONFIG_IEMP_MQTT_PASSWORD,
+      .backend_host = CONFIG_IEMP_BACKEND_HOST,
+      .backend_port = CONFIG_IEMP_BACKEND_PORT,
 #if CONFIG_IEMP_WEB_SENSOR_INPUT
       .web_input_key = CONFIG_IEMP_WEB_INPUT_KEY,
 #else

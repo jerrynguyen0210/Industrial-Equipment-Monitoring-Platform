@@ -18,6 +18,7 @@ from app.database import create_database_engine
 from app.device_api import router as device_router
 from app.gateway_auth import load_gateway_credentials
 from app.history_api import router as history_router
+from app.mqtt_admin import BrokerAdmin
 from app.telemetry_api import router as telemetry_router
 from app.telemetry_openapi import build_telemetry_openapi
 
@@ -48,6 +49,7 @@ def create_app(
     database_probe: Callable[[], None] = check_database,
     *,
     engine_factory: Callable[[], Engine] = create_database_engine,
+    broker_factory: Callable[[], BrokerAdmin] = BrokerAdmin.from_environment,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
@@ -55,6 +57,7 @@ def create_app(
         application.state.gateway_credentials = load_gateway_credentials()
         engine = engine_factory()
         application.state.database_engine = engine
+        application.state.broker_admin = broker_factory()
         try:
             yield
         finally:

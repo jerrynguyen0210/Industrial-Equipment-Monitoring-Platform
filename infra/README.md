@@ -17,12 +17,17 @@ python infra/mosquitto/provision.py
 docker compose up -d --build --wait
 ```
 
-The one-time provisioner creates ignored local passwords and a hashed broker
-password file under `secrets/mosquitto/`. It requires Python 3.13+ and Docker.
+The one-time provisioner creates ignored local passwords, a hashed broker
+password file, and a broker administration secret under `secrets/mosquitto/`.
+It requires Python 3.13+ and Docker. Registering a device on the dashboard
+creates its scoped MQTT account automatically.
 It refuses to overwrite existing credentials; keep those files for the lifetime
 of the local broker and its clients. No native compiler, Node.js, hardware, or
 pre-existing `.env` is needed. The first start needs internet access to download
 images and locked packages.
+For an auth directory created by an earlier version, run
+`python infra/mosquitto/provision.py --ensure-admin` once before recreating
+Mosquitto and the backend. This keeps all existing device passwords.
 Images are pinned by digest; application dependencies use committed lockfiles.
 To update images, deliberately refresh the digests and rerun the smoke test.
 
@@ -95,11 +100,15 @@ The official entrypoints initialize volume permissions; no manual host `chmod`
 is needed. Backend and frontend run as unprivileged users. Mosquitto
 configuration, ACL, and generated auth directory are read-only mounts; broker
 logs go to stdout rather than an unbounded volume. The generated `passwd` file
-contains hashes; separate local password files are ignored by Git. To rotate,
-stop Mosquitto, move `secrets/mosquitto` to a protected backup path, run the
-provisioner again, update clients, and restart Mosquitto. Keep the old files
-until clients are updated, then remove the backup deliberately. Rotation does
-not erase the `mosquitto_data` volume.
+contains hashes; separate local password files are ignored by Git. Managed
+device accounts live in Mosquitto's dynamic security file on the persistent
+`mosquitto_data` volume. The backend reads only the broker administration secret
+and never mounts the Docker socket. Back up `secrets/mosquitto` and
+`mosquitto_data` together. Keep `admin.password` with the dynamic security
+configuration: Mosquitto reads the initialization password only when it first
+creates that configuration. Replacing `admin.password` alone would prevent the
+backend from administering accounts. New registrations and existing-device MQTT
+setup update the dynamic security file without restarting Mosquitto.
 Volume names are Compose-project scoped (normally `iemp_postgres_data` and
 `iemp_mosquitto_data`). Keep the project name stable to reuse data.
 

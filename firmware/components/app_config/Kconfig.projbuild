@@ -38,6 +38,20 @@ menu "Industrial Equipment Monitoring firmware"
             Provisioned for the account named by the registered device ID.
             The local broker is unencrypted; use it only on a trusted lab LAN.
 
+    config IEMP_BACKEND_HOST
+        string "Backend LAN hostname or IPv4 address for device heartbeats"
+        default ""
+        help
+            Optional. Set this to the backend's LAN address to report device
+            presence every 30 seconds, even when no sensor readings are sent.
+            Dashboard registration creates the MQTT broker account. Use the
+            same password in firmware and backend registration.
+
+    config IEMP_BACKEND_PORT
+        int "Backend heartbeat HTTP port"
+        range 1 65535
+        default 8000
+
     config IEMP_SENSOR_GPIO
         int "DS18B20 1-Wire data GPIO"
         range 0 33

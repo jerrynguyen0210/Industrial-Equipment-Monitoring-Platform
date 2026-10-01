@@ -42,6 +42,10 @@ describe("equipment dashboard", () => {
           {
             device_id: "device-demo-001",
             name: "Demo device",
+            gateway_id: "gateway-demo-001",
+            enabled: true,
+            online: true,
+            last_seen_at: "2026-09-26T02:05:20Z",
             latest_reading: {
               value: "24.6",
               unit: "celsius",
@@ -55,11 +59,19 @@ describe("equipment dashboard", () => {
           {
             device_id: "device-without-data",
             name: "New device",
+            gateway_id: "gateway-demo-001",
+            enabled: true,
+            online: false,
+            last_seen_at: null,
             latest_reading: null,
           },
           {
             device_id: "device-gateway-time",
             name: "Gateway timed device",
+            gateway_id: "gateway-demo-001",
+            enabled: true,
+            online: false,
+            last_seen_at: "2026-09-26T02:02:00Z",
             latest_reading: {
               value: "18.2",
               unit: "celsius",
@@ -91,13 +103,10 @@ describe("equipment dashboard", () => {
     expect(within(demoCard!).getByText("celsius")).toBeTruthy();
     expect(within(demoCard!).getByText(/1 min ago/)).toBeTruthy();
     expect(within(demoCard!).getByText("Recorded reading")).toBeTruthy();
-    expect(
-      within(demoCard!).getByText(
-        "Live sensor connection status is unavailable.",
-      ),
-    ).toBeTruthy();
+    expect(within(demoCard!).getByText("Running · online")).toBeTruthy();
     expect(within(emptyCard!).getByText("Unavailable")).toBeTruthy();
     expect(within(emptyCard!).getByText("No reading")).toBeTruthy();
+    expect(within(emptyCard!).getByText("Offline")).toBeTruthy();
     expect(
       within(emptyCard!).getByText(
         "No valid temperature reading has been recorded.",

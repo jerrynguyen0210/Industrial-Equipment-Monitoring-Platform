@@ -46,7 +46,12 @@ class TelemetryPostgresTests(PostgresTestCase):
             connection.execute(insert(Telemetry).values(**event()))
         self.migrate("downgrade", "0001_registry")
         with Session(self.engine) as session:
-            self.assertEqual(session.get(Device, DEVICE_ID).gateway_id, GATEWAY_ID)
+            self.assertEqual(
+                session.scalar(
+                    select(Device.gateway_id).where(Device.device_id == DEVICE_ID)
+                ),
+                GATEWAY_ID,
+            )
         self.migrate("upgrade", "head")
         with self.engine.begin() as connection:
             config = Config(str(BACKEND / "alembic.ini"))
