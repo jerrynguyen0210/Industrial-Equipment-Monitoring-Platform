@@ -47,7 +47,7 @@ void app_main(void) {
   err = app_config_load(&config);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "startup_failed stage=config error=%s", esp_err_to_name(err));
-#if !CONFIG_IEMP_WEB_SENSOR_INPUT
+#if !CONFIG_IEMP_TEMPERATURE_DISABLED && !CONFIG_IEMP_WEB_SENSOR_INPUT
     err = sampling_start();
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "startup_failed stage=sampling error=%s", esp_err_to_name(err));
@@ -74,7 +74,7 @@ void app_main(void) {
     }
   }
 
-#if !CONFIG_IEMP_WEB_SENSOR_INPUT
+#if !CONFIG_IEMP_TEMPERATURE_DISABLED && !CONFIG_IEMP_WEB_SENSOR_INPUT
   // The sensor schedule does not depend on MQTT or Wi-Fi reconnection state.
   err = sampling_start();
   if (err != ESP_OK) {

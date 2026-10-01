@@ -94,3 +94,4 @@ crash.log
 
 # Native gateway local database and WAL files.
 gateway/*.sqlite3*
+agents/server_scripts/remote.json

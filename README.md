@@ -26,7 +26,8 @@ This remains a lab prototype; see the [setup and customer deployment guide](Setu
 | [infra/](infra/README.md) | Local environment and deployment configuration. |
 | [docs/](docs/README.md) | Architecture, interface contracts, decisions, and runbooks. |
 | [tests/](tests/README.md) | Cross-workstream integration and end-to-end tests. |
-| [agents/](agents/README.md) | Autonomous, bounded setup tooling. |
+| [agents/server_scripts/](agents/server_scripts/README.md) | Local stack launcher. |
+| [agents/hardware_script/](agents/hardware_script/README.md) | ESP32 firmware build and flash helper. |
 
 Unit tests belong alongside the workstream they exercise. Shared fixtures and
 tests spanning multiple workstreams belong in `tests/`.
@@ -41,69 +42,35 @@ the backend does not stop Mosquitto. See the
 
 ## Getting started
 
-For a complete path from a new host through hardware validation and release
-planning, start with the [setup guide](Setup_Guide/README.md).
+1. Open a terminal in this repository folder on Linux.
 
-To have an OpenAI Codex setup agent run and verify the supported Linux lab
-installation independently, see the [setup agent](agents/setup_agent/README.md).
+2. Start the complete stack on the current machine:
 
-From the repository root:
+   ```sh
+   ./agents/server_scripts/run-stack.sh
+   ```
 
-```powershell
-python infra/mosquitto/provision.py
-docker compose up -d --build --wait
-```
+   Choose LAN access when prompted. For example, use `192.168.0.50` for the
+   server and `192.168.0.114` for the ESP32.
 
-Open **http://localhost:8080** for Overview or
-**http://localhost:8080/status** for Service Status. The status view reports
-whether the backend can query PostgreSQL through `/api/health/ready`.
-The provisioner creates ignored, local MQTT credentials and refuses to replace
-an existing credential directory. Run it only once for a persistent stack;
-later starts need only the Compose command. First startup downloads images and
-builds both applications. No `.env` file is required, and the readiness check
-does not require a database migration. Run migrations explicitly before using
-registry or telemetry persistence; see the [Docker test guide](docs/docker-testing.md).
+3. Open the dashboard address printed by the script, such as
+   `http://192.168.0.50:8080`.
 
-### Prerequisites
+4. Check status or logs:
 
-Docker Engine with Docker Compose v2.24+ (including newer versions), or Docker
-Desktop running Linux containers. The Docker daemon must be running. Allow about
-2 GB of memory for these services, plus image-build overhead, and free host ports
-8080, 8000, and 1883. Host Python is needed for the one-time MQTT credential
-provisioner; the isolated smoke test requires Python 3.13+. Node.js is needed
-only for native frontend development.
+   ```sh
+   ./agents/server_scripts/run-stack.sh status
+   ./agents/server_scripts/run-stack.sh logs
+   ```
 
-### Local development
+5. Stop the stack while preserving data:
 
-Defaults bind published ports to loopback and are for local development with
-synthetic data. Optional overrides are listed in [.env.example](.env.example);
-copy it to `.env` only when changing defaults.
+   ```sh
+   ./agents/server_scripts/run-stack.sh stop
+   ```
 
-Service examples are available for [backend](backend/.env.example),
-[frontend](frontend/.env.example), [gateway](gateway/.env.example), and
-[simulator](simulator/.env.example). The [configuration guide](docs/configuration.md)
-explains which files are loaded, local addresses, and credential placeholders.
-
-| Service | Host address |
-| --- | --- |
-| Frontend | http://localhost:8080 |
-| Backend liveness | http://localhost:8000/health |
-| Backend database readiness | http://localhost:8000/ready |
-| MQTT | `127.0.0.1:1883` |
-| PostgreSQL | Internal only; use `docker compose exec postgres ...`. |
-
-```powershell
-docker compose up -d --wait  # Start in the background and wait for health checks.
-docker compose ps
-docker compose logs -f
-docker compose up -d --build --wait  # Rebuild after application changes.
-docker compose down         # Remove containers; retain named data volumes.
-```
-
-Gateway and firmware are intentionally outside Compose so native builds, serial
-debugging, flashing, and the gateway's local SQLite queue remain independent.
-See [infra/README.md](infra/README.md) for hardware connectivity, configuration,
-storage, independent service lifecycles, and troubleshooting.
+6. Continue with the [setup guide](Setup_Guide/README.md) for hardware or
+   deployment.
 
 ### Testing
 

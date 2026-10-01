@@ -140,29 +140,31 @@ Connect one ESP32-DevKitC-compatible board to the Linux host with a data-capable
 USB cable, then run from the repository root as your normal user:
 
 ```sh
-./Setup_Guide/compile-and-flash-esp32.sh --monitor
+./agents/hardware_script/compile-and-flash-esp32.sh --monitor
 ```
 
 On Raspberry Pi OS, Debian, and Ubuntu, the script installs the build packages,
 clones the pinned ESP-IDF 5.5.4 release under the user's local data directory,
 installs the ESP32 compiler, builds the firmware, detects the serial port, and
 flashes the board. The first run opens `menuconfig` for the required device,
-Wi-Fi, MQTT, and sensor settings. Later runs validate and reuse the ignored
-`firmware/sdkconfig`, making compilation and upload a single command. The script
+Wi-Fi, broker, and sensor settings. Every run securely prompts twice for the
+device's MQTT password after `menuconfig`; leave that field empty in the menu.
+Later runs validate and reuse the ignored `firmware/sdkconfig`, making
+compilation and upload a single command. The script
 never runs a full-chip erase or intentionally erases NVS; normal flashing only
 updates the firmware-related partitions.
 
 If more than one serial device is connected, select the board explicitly:
 
 ```sh
-./Setup_Guide/compile-and-flash-esp32.sh --port /dev/ttyUSB0 --monitor
+./agents/hardware_script/compile-and-flash-esp32.sh --port /dev/ttyUSB0 --monitor
 ```
 
 Use `--configure` to reopen configuration, or `--skip-host-install` on another
 64-bit Linux distribution after installing ESP-IDF's prerequisites. If the
 script reports a serial permission error, add the user to the reported group
 (usually `dialout`), log out and back in, and rerun. Run
-`./Setup_Guide/compile-and-flash-esp32.sh --help` for all options. Keep
+`./agents/hardware_script/compile-and-flash-esp32.sh --help` for all options. Keep
 `firmware/sdkconfig` and the generated firmware image private because they
 contain Wi-Fi and MQTT credentials.
 
@@ -203,7 +205,7 @@ require a host group change. In **Industrial Equipment Monitoring firmware** set
 | MQTT host/port | Reachable broker LAN address, port `1883` unless overridden. |
 | MQTT password | Contents of `secrets/mosquitto/device-demo-001.password`; username is the device ID. |
 | Sensor GPIO | GPIO 4 for the wiring above, or the actual selected pin. |
-| Temperature source | DS18B20 for physical monitoring; select web entry for an unwired lab demo. |
+| Temperature source | Disabled until a probe is installed; select DS18B20 for physical monitoring or web entry for an unwired lab demo. |
 | Web temperature entry key | Required only for web entry; a separate device-specific 8–63 character key without spaces. |
 | Synthetic source | Select only for a fixed-value lab demo. |
 

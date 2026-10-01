@@ -379,8 +379,20 @@ configure_local_credentials
 provision_mqtt_credentials
 start_platform
 
+frontend_endpoint="$("${DOCKER[@]}" compose config --format json | python3 -c '
+import json
+import sys
+port = json.load(sys.stdin)["services"]["frontend"]["ports"][0]
+print("{}:{}".format(port["host_ip"], port["published"]))
+')"
+backend_endpoint="$("${DOCKER[@]}" compose config --format json | python3 -c '
+import json
+import sys
+port = json.load(sys.stdin)["services"]["backend"]["ports"][0]
+print("{}:{}".format(port["host_ip"], port["published"]))
+')"
 log "Installation complete"
-log "Dashboard: http://127.0.0.1:8080"
-log "Backend readiness: http://127.0.0.1:8000/ready"
+log "Dashboard: http://${frontend_endpoint}"
+log "Backend readiness: http://${backend_endpoint}/ready"
 log "Credentials were saved locally and were not printed"
 log "For ESP32 or remote gateway access, follow Setup_Guide/02-hardware-and-gateway.md"

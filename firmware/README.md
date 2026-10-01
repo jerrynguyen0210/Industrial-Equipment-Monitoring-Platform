@@ -3,9 +3,10 @@
 This ESP-IDF 5.5 project targets an ESP32-DevKitC-compatible board with a
 standard ESP32, onboard flash, and a USB serial connection. It validates local
 configuration, commits a new boot identity to NVS, starts a sequence counter at
-zero, joins a WPA2/WPA3 Wi-Fi network, and samples one DS18B20 temperature probe.
-The probe is not installed yet. Until it is wired, normal mode logs an explicit
-sensor error every sample period. An opt-in demo mode publishes a fixed synthetic
+zero, and joins a WPA2/WPA3 Wi-Fi network. Temperature input is disabled by
+default because the probe is not installed yet. This mode neither reads the
+DS18B20 bus nor publishes temperature telemetry. Select the DS18B20 source
+when the probe is wired. An opt-in demo mode publishes a fixed synthetic
 temperature for a board without the probe.
 
 ## Layout
@@ -49,8 +50,10 @@ port defaults to 1883. Set `MQTT_BIND_ADDRESS` to the broker host's LAN address
 for a real ESP32; `localhost` on the board does not reach the Compose broker.
 The local MQTT listener is unencrypted and suitable only for a trusted lab LAN.
 
-The **DS18B20 1-Wire data GPIO** defaults to GPIO 4 and the **Temperature sampling
-interval** defaults to 5000 ms. Sampling runs independently of Wi-Fi, so sensor
+Under **Temperature source**, leave **Disabled (no temperature sensor installed)**
+selected until a probe or manual input is ready. The **DS18B20 1-Wire data GPIO**
+defaults to GPIO 4 and the **Temperature sampling interval** defaults to 5000 ms
+when physical sampling is selected. Sampling runs independently of Wi-Fi, so sensor
 state is logged even when Wi-Fi configuration is absent. The ESP-IDF component
 manager downloads pinned versions of
 [Espressif's DS18B20 driver](https://components.espressif.com/components/espressif/ds18b20/versions/0.4.0/readme)
@@ -81,13 +84,14 @@ and do not treat these readings as physical probe measurements. The ESP32 page
 uses plain HTTP; restrict it to a trusted lab Wi-Fi network. The input key and
 MQTT credentials are embedded in the firmware image, so keep it private.
 
-For the current unwired board, enable **Demo-only synthetic temperature** in
-`idf.py menuconfig` and set **Demo temperature** (default `2500`, meaning 25.00°C).
-This publishes one constant event every five seconds without starting the sensor
-driver. Serial logs say `sensor_state=synthetic_demo`. Use a dedicated demo device
-ID and registered broker account: the frozen telemetry JSON has no synthetic
-provenance field, so gateway and dashboard consumers see a `valid` temperature.
-Disable the mode and wire the DS18B20 before using readings as physical evidence.
+For an unwired board that needs generated demo readings, enable **Demo-only
+synthetic temperature** in `idf.py menuconfig` and set **Demo temperature**
+(default `2500`, meaning 25.00°C). This publishes one constant event every five
+seconds without starting the sensor driver. Serial logs say
+`sensor_state=synthetic_demo`. Use a dedicated demo device ID and registered
+broker account: the frozen telemetry JSON has no synthetic provenance field, so
+gateway and dashboard consumers see a `valid` temperature. Select the DS18B20
+source and wire the probe before using readings as physical evidence.
 
 Without a host ESP-IDF install, use the pinned official container from
 `firmware/` for both configuration and build:
