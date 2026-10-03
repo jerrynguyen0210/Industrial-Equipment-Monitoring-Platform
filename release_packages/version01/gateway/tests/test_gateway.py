@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import socket
 import sqlite3
 import stat
 import subprocess
@@ -36,9 +37,13 @@ class GatewayProcessTests(unittest.TestCase):
         (self.directory / "mqtt.password").write_text("test-password\n")
         self.config_file = self.directory / "gateway.env"
         self.database = self.directory / "queue.sqlite3"
+        # Reserve a port without listening so the broker is always unavailable.
+        mqtt_socket = socket.socket()
+        self.addCleanup(mqtt_socket.close)
+        mqtt_socket.bind(("127.0.0.1", 0))
         self.values = {
             "MQTT_HOST": "127.0.0.1",
-            "MQTT_PORT": "1883",
+            "MQTT_PORT": str(mqtt_socket.getsockname()[1]),
             "MQTT_USERNAME": "gateway-test",
             "MQTT_PASSWORD_FILE": "mqtt.password",
             "API_BASE_URL": "http://127.0.0.1:8000/api",
@@ -84,8 +89,6 @@ class GatewayProcessTests(unittest.TestCase):
             events = [json.loads(line)["event"] for line in output.splitlines()]
             self.assertIn("ready", events)
             self.assertEqual(events[-2:], ["shutdown_requested", "stopped"])
-            # A broker may be running locally and reject this test credential.
-            # The lifecycle contract is independent of broker availability.
         finally:
             if process.poll() is None:
                 process.kill()

@@ -362,7 +362,7 @@ start_platform() {
 
   log "Applying database migrations and demo registry seed"
   "${DOCKER[@]}" compose exec -T backend python -m alembic upgrade head
-  "${DOCKER[@]}" compose exec -T backend python -m app.seed
+  "${DOCKER[@]}" compose exec -T backend python -m app.db.seed
 
   log "Verifying API and dashboard health inside the containers"
   "${DOCKER[@]}" compose exec -T backend python -c \

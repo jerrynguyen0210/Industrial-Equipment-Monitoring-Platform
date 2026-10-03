@@ -51,10 +51,10 @@ deletion coordinate broker changes with database rollback compensation.
 Cross-feature registry and presence queries go through the device repository.
 Shared ORM metadata stays in `db/models.py` for Alembic and foreign keys.
 
-Use the feature packages for new imports. Thin `app.database` and `app.models`
-wrappers preserve existing deployment-script imports. The existing
-`python -m app.seed` and `python -m app.telemetry_openapi --output PATH` commands
-delegate to `app.db.seed` and `app.telemetry.openapi`.
+Use the feature packages for imports, including `app.db.session` for
+`create_database_engine` and `app.db.models` for shared ORM models. Run the demo
+seed with `python -m app.db.seed` and generate the ingestion contract with
+`python -m app.telemetry.openapi --output PATH`.
 
 ## API summary
 
@@ -86,7 +86,7 @@ See [device management](../docs/device-status-api.md),
 
    ```sh
    docker compose exec -T backend python -m alembic upgrade head
-   docker compose exec -T backend python -m app.seed
+   docker compose exec -T backend python -m app.db.seed
    docker compose exec -T backend python -m alembic current
    ```
 

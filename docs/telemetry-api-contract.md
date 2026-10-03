@@ -105,7 +105,7 @@ null identity fields in its result, so clients correlate it by array position.
 From `backend/`:
 
 ```sh
-python -m app.telemetry_openapi --output ../docs/telemetry-openapi.json
+python -m app.telemetry.openapi --output ../docs/telemetry-openapi.json
 python -m unittest discover -s tests -v
 ```
 

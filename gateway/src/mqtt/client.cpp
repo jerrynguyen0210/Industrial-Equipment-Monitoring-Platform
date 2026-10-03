@@ -120,17 +120,22 @@ struct Client::Impl {
     if (result != MOSQ_ERR_SUCCESS) {
       throw std::runtime_error("cannot configure MQTT reconnect delay");
     }
-    result = mosquitto_connect_async(mosq, host.c_str(), port, 60);
-    if (result != MOSQ_ERR_SUCCESS) {
-      throw std::runtime_error("cannot start MQTT connection: " +
-                               std::string(mosquitto_strerror(result)));
-    }
+    // Start the thread before connecting so CONNECT writes are queued instead
+    // of failing synchronously when the broker is unavailable at startup.
     result = mosquitto_loop_start(mosq);
     if (result != MOSQ_ERR_SUCCESS) {
       throw std::runtime_error("cannot start MQTT network loop: " +
                                std::string(mosquitto_strerror(result)));
     }
     running = true;
+    result = mosquitto_connect_async(mosq, host.c_str(), port, 60);
+    if (result == MOSQ_ERR_ERRNO) {
+      log(Level::warning, "mqtt", "connect_pending",
+          "MQTT broker unavailable at startup; reconnecting");
+    } else if (result != MOSQ_ERR_SUCCESS) {
+      throw std::runtime_error("cannot start MQTT connection: " +
+                               std::string(mosquitto_strerror(result)));
+    }
   }
 
   void stop() {

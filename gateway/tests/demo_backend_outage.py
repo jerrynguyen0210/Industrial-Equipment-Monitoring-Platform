@@ -118,7 +118,7 @@ def main():
             compose("up", "-d", "--build", "--wait", "postgres", "mosquitto", "backend",
                     timeout=360)
             compose("exec", "-T", "backend", "python", "-m", "alembic", "upgrade", "head")
-            compose("exec", "-T", "backend", "python", "-m", "app.seed")
+            compose("exec", "-T", "backend", "python", "-m", "app.db.seed")
             backend_port = int(compose("port", "backend", "8000").rsplit(":", 1)[1])
             mqtt_port = int(compose("port", "mosquitto", "1883").rsplit(":", 1)[1])
             config = directory / "gateway.env"

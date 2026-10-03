@@ -51,6 +51,7 @@ class MqttIntakeTests(unittest.TestCase):
             "user another-device\ntopic write equipment/another-device/telemetry\n"
         )
         broker_config = self.directory / "mosquitto.conf"
+        self.broker_config = broker_config
         broker_config.write_text(
             f"listener {self.port} 127.0.0.1\nallow_anonymous false\n"
             f"password_file {passwords}\nacl_file {acl}\npersistence false\n"
@@ -85,7 +86,7 @@ class MqttIntakeTests(unittest.TestCase):
         self.start_gateway()
         self.addCleanup(self.stop_gateway)
 
-    def start_gateway(self):
+    def start_gateway(self, wait_for_subscription=True):
         self.records = queue.Queue()
         self.gateway_process = subprocess.Popen(
             [self.gateway, "--config", self.config],
@@ -99,7 +100,8 @@ class MqttIntakeTests(unittest.TestCase):
             thread.start()
             self.log_threads.append(thread)
         pending_loaded = self.wait_for("pending_loaded")
-        self.wait_for("subscribed")
+        if wait_for_subscription:
+            self.wait_for("subscribed")
         return pending_loaded
 
     def collect_logs(self, stream):
@@ -252,6 +254,27 @@ class MqttIntakeTests(unittest.TestCase):
             self.assertEqual(connection.execute("PRAGMA quick_check").fetchone(), ("ok",))
             self.assertEqual(connection.execute("SELECT COUNT(*) FROM intake_events").fetchone(),
                              (2,))
+
+    def test_startup_without_broker_recovers_and_stores_telemetry(self):
+        self.stop_gateway()
+        self.stop_broker()
+        self.start_gateway(wait_for_subscription=False)
+        self.wait_for("ready")
+        self.wait_for("disconnected")
+
+        self.broker_process = subprocess.Popen(
+            [self.broker, "-c", self.broker_config],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        self.wait_for("subscribed", timeout=8)
+        sample = Path(__file__).resolve().parents[2] / "infra/mosquitto/sample-event.json"
+        payload = sample.read_text()
+        self.publish(payload)
+        self.wait_for("message_stored")
+        self.assertEqual(self.row(0)[0], payload)
+        self.stop_gateway()
+        self.assertEqual(self.gateway_process.returncode, 0)
 
 
 if __name__ == "__main__":

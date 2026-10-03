@@ -403,8 +403,8 @@ PY
 import sys
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from app.database import create_database_engine
-from app.models import Telemetry
+from app.db.session import create_database_engine
+from app.db.models import Telemetry
 
 engine = create_database_engine()
 with Session(engine) as session:

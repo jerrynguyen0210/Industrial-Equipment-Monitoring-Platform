@@ -36,7 +36,7 @@ volumes.
 python infra\mosquitto\provision.py
 docker compose up -d --build --wait --wait-timeout 120
 docker compose exec -T backend python -m alembic upgrade head
-docker compose exec -T backend python -m app.seed
+docker compose exec -T backend python -m app.db.seed
 docker compose ps
 ```
 

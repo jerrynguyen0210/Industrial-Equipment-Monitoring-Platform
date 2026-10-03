@@ -17,7 +17,7 @@ frontend. Firmware and the native gateway run outside Compose.
    python3 infra/mosquitto/provision.py
    docker compose up -d --build --wait
    docker compose exec -T backend python -m alembic upgrade head
-   docker compose exec -T backend python -m app.seed
+   docker compose exec -T backend python -m app.db.seed
    ```
 
 3. Verify:

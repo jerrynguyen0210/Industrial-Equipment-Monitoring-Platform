@@ -242,7 +242,7 @@ class RegistryPostgresTests(PostgresTestCase):
             ["alembic", "downgrade", "base"],
             ["alembic", "upgrade", "head"],
             ["app.db.seed"],
-            ["app.seed"],
+            ["app.db.seed"],
             ["alembic", "check"],
         ]
         for args in commands:

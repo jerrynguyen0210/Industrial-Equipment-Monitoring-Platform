@@ -13,8 +13,8 @@ Follow [CONTRIBUTING.md](../CONTRIBUTING.md) and these backend-specific rules.
   `router.py`, and business rules/transaction coordination in `service.py`.
 - Device and telemetry repositories take a caller-owned session and never commit.
   Alert evaluation uses the ingestion session so alert state commits with readings.
-- Import implementations from feature packages. Root compatibility modules exist
-  only for deployment scripts and documented CLI commands.
+- Import implementations from feature packages. Run CLI commands through
+  `app.db.seed` and `app.telemetry.openapi`.
 - Use typed functions and explicit dependencies. Keep route handlers small.
 - Format and lint with the committed Ruff configuration.
 - Never expose database models directly as public request models.

@@ -254,7 +254,7 @@ def main() -> None:
                 "exec", "-T", "backend", "python", "-m", "alembic", "upgrade", "head"
             )
             for _ in range(2):
-                compose("exec", "-T", "backend", "python", "-m", "app.seed")
+                compose("exec", "-T", "backend", "python", "-m", "app.db.seed")
             registry_query = (
                 "SELECT d.device_id FROM devices d "
                 "JOIN gateways g ON g.gateway_id = d.gateway_id "

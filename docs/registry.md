@@ -48,7 +48,7 @@ ownership change cannot authorize a stale write.
 3. For a lab only, insert the demo hierarchy:
 
    ```sh
-   docker compose exec -T backend python -m app.seed
+   docker compose exec -T backend python -m app.db.seed
    ```
 
 The seed creates `site-demo-001 -> gateway-demo-001 -> device-demo-001`. It is
