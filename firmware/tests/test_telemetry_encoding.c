@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -37,6 +38,29 @@ int main(void) {
   assert(telemetry_encode(&event, replay, sizeof(replay)));
   assert(strstr(replay, "quoted\\\"device\\\\id") != NULL);
   assert(!telemetry_encode(&event, replay, 20));
+
+  // Every non-NUL JSON control byte must use the same six-byte escape.
+  char control_id[32];
+  char expected_escape[7];
+  for (size_t index = 0; index < sizeof(control_id) - 1; ++index) {
+    control_id[index] = (char)(index + 1);
+  }
+  control_id[sizeof(control_id) - 1] = '\0';
+  event.device_id = control_id;
+  assert(telemetry_encode(&event, replay, sizeof(replay)));
+  for (unsigned int character = 1; character < 0x20; ++character) {
+    assert(snprintf(expected_escape, sizeof(expected_escape), "\\u%04x", character) == 6);
+    assert(strstr(replay, expected_escape) != NULL);
+  }
+  const size_t encoded_length = strlen(replay);
+  assert(telemetry_encode(&event, first, encoded_length + 1));
+  assert(strcmp(first, replay) == 0);
+  for (size_t capacity = 0; capacity <= encoded_length; ++capacity) {
+    memset(first, 0x5a, sizeof(first));
+    assert(!telemetry_encode(&event, first, capacity));
+    assert(first[capacity] == 0x5a);
+  }
+
   char escaped_id[129];
   memset(escaped_id, '"', sizeof(escaped_id) - 1);
   escaped_id[sizeof(escaped_id) - 1] = '\0';
@@ -49,6 +73,31 @@ int main(void) {
   assert(!telemetry_encode(&event, replay, sizeof(replay)));
   event.device_id = escaped_id;
   event.celsius = 126.0f;
+  assert(!telemetry_encode(&event, replay, sizeof(replay)));
+  event.celsius = NAN;
+  assert(!telemetry_encode(&event, replay, sizeof(replay)));
+  event.celsius = INFINITY;
+  assert(!telemetry_encode(&event, replay, sizeof(replay)));
+  event.celsius = -55.0f;
+  assert(telemetry_encode(&event, replay, sizeof(replay)));
+  event.celsius = 125.0f;
+  assert(telemetry_encode(&event, replay, sizeof(replay)));
+  event.sequence_number = -1;
+  assert(!telemetry_encode(&event, replay, sizeof(replay)));
+  event.sequence_number = INT64_MAX;
+  event.device_uptime_ms = -1;
+  assert(!telemetry_encode(&event, replay, sizeof(replay)));
+  event.device_uptime_ms = INT64_MAX;
+  assert(telemetry_encode(&event, replay, sizeof(replay)));
+  assert(!telemetry_encode(NULL, replay, sizeof(replay)));
+  assert(!telemetry_encode(&event, NULL, sizeof(replay)));
+  event.device_id = NULL;
+  assert(!telemetry_encode(&event, replay, sizeof(replay)));
+  event.device_id = "device-demo-001";
+  event.boot_id = NULL;
+  assert(!telemetry_encode(&event, replay, sizeof(replay)));
+  event.boot_id = identity.boot_id;
+  event.measured_at = NULL;
   assert(!telemetry_encode(&event, replay, sizeof(replay)));
   puts("telemetry encoding checks passed");
   return 0;

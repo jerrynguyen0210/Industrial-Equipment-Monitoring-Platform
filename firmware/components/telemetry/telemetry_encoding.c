@@ -6,7 +6,7 @@
 #include <string.h>
 
 static bool append(char **cursor, size_t *remaining, const char *value) {
-  size_t length = strlen(value);
+  const size_t length = strlen(value);
   if (length >= *remaining) {
     return false;
   }
@@ -17,19 +17,24 @@ static bool append(char **cursor, size_t *remaining, const char *value) {
 }
 
 static bool append_json_string(char **cursor, size_t *remaining, const char *value) {
+  static const char hex[] = "0123456789abcdef";
   if (!append(cursor, remaining, "\"")) {
     return false;
   }
-  for (const unsigned char *p = (const unsigned char *)value; *p != '\0'; ++p) {
+  for (const unsigned char *character = (const unsigned char *)value; *character != '\0';
+       ++character) {
     char escaped[7];
-    if (*p == '"' || *p == '\\') {
+    if (*character == '"' || *character == '\\') {
       escaped[0] = '\\';
-      escaped[1] = (char)*p;
+      escaped[1] = (char)*character;
       escaped[2] = '\0';
-    } else if (*p < 0x20) {
-      (void)snprintf(escaped, sizeof(escaped), "\\u%04x", *p);
+    } else if (*character < 0x20) {
+      memcpy(escaped, "\\u00", 4);
+      escaped[4] = hex[*character >> 4];
+      escaped[5] = hex[*character & 0x0f];
+      escaped[6] = '\0';
     } else {
-      escaped[0] = (char)*p;
+      escaped[0] = (char)*character;
       escaped[1] = '\0';
     }
     if (!append(cursor, remaining, escaped)) {
@@ -41,15 +46,21 @@ static bool append_json_string(char **cursor, size_t *remaining, const char *val
 
 bool telemetry_encode(const telemetry_event_t *event, char *out, size_t capacity) {
   if (event == NULL || out == NULL || capacity == 0 || event->device_id == NULL ||
-      event->boot_id == NULL || event->measured_at == NULL || event->device_id[0] == '\0' ||
-      event->boot_id[0] == '\0' || strlen(event->device_id) > 128 || strlen(event->boot_id) > 128 ||
-      event->sequence_number < 0 || event->device_uptime_ms < 0 || !isfinite(event->celsius) ||
+      event->boot_id == NULL || event->measured_at == NULL) {
+    return false;
+  }
+  if (event->device_id[0] == '\0' || event->boot_id[0] == '\0' ||
+      strlen(event->device_id) > 128 || strlen(event->boot_id) > 128) {
+    return false;
+  }
+  if (event->sequence_number < 0 || event->device_uptime_ms < 0 || !isfinite(event->celsius) ||
       event->celsius < -55.0f || event->celsius > 125.0f) {
     return false;
   }
 
   char *cursor = out;
   size_t remaining = capacity;
+  const bool clock_synchronised = event->measured_at[0] != '\0';
   if (!append(&cursor, &remaining, "{\"schema_version\":1,\"device_id\":") ||
       !append_json_string(&cursor, &remaining, event->device_id) ||
       !append(&cursor, &remaining, ",\"boot_id\":") ||
@@ -64,7 +75,7 @@ bool telemetry_encode(const telemetry_event_t *event, char *out, size_t capacity
   }
   cursor += written;
   remaining -= (size_t)written;
-  if (event->measured_at[0] == '\0') {
+  if (!clock_synchronised) {
     if (!append(&cursor, &remaining, "null")) {
       return false;
     }
@@ -76,6 +87,6 @@ bool telemetry_encode(const telemetry_event_t *event, char *out, size_t capacity
                      ",\"metric\":\"temperature\",\"value\":%.4f,\"unit\":\"celsius\","
                      "\"quality\":{\"reading\":\"valid\",\"clock\":\"%s\"}}",
                      event->device_uptime_ms, (double)event->celsius,
-                     event->measured_at[0] == '\0' ? "unsynchronised" : "synchronised");
+                     clock_synchronised ? "synchronised" : "unsynchronised");
   return written >= 0 && (size_t)written < remaining;
 }

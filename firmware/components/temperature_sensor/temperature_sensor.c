@@ -59,12 +59,18 @@ void temperature_sensor_destroy(temperature_sensor_t *sensor) {
 
 static temperature_sample_t sample_error(esp_err_t err) {
   temperature_sample_t sample = {.status = TEMPERATURE_SAMPLE_IO_ERROR, .driver_error = err};
-  if (err == ESP_ERR_NOT_FOUND) {
+  switch (err) {
+  case ESP_ERR_NOT_FOUND:
     sample.status = TEMPERATURE_SAMPLE_DISCONNECTED;
-  } else if (err == ESP_ERR_INVALID_CRC) {
+    break;
+  case ESP_ERR_INVALID_CRC:
     sample.status = TEMPERATURE_SAMPLE_CRC_ERROR;
-  } else if (err == ESP_ERR_INVALID_STATE) {
+    break;
+  case ESP_ERR_INVALID_STATE:
     sample.status = TEMPERATURE_SAMPLE_INVALID;
+    break;
+  default:
+    break;
   }
   return sample;
 }

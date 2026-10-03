@@ -1,6 +1,7 @@
 #include "temperature_input.h"
 
 #include <ctype.h>
+#include <errno.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,8 +17,10 @@ bool temperature_input_parse(const char *text, size_t length, float *out_celsius
   buffer[length] = '\0';
 
   char *end = NULL;
+  errno = 0;
   const float value = strtof(buffer, &end);
-  if (end == buffer) {
+  // Underflow can produce a finite zero; do not accept it as a real reading.
+  if (end == buffer || errno == ERANGE) {
     return false;
   }
   while (*end != '\0' && isspace((unsigned char)*end)) {

@@ -103,7 +103,9 @@ static void sampling_task(void *arg) {
            (double)demo_celsius, CONFIG_IEMP_SAMPLE_INTERVAL_MS);
   for (;;) {
     ESP_LOGI(TAG, "sensor_state=synthetic_demo temperature_c=%.2f", (double)demo_celsius);
-    telemetry_submit_temperature(demo_celsius);
+    if (telemetry_submit_temperature(demo_celsius) != ESP_OK) {
+      ESP_LOGW(TAG, "sensor_input=not_queued");
+    }
     vTaskDelayUntil(&last_wake, period);
   }
 #else
@@ -124,7 +126,9 @@ static void sampling_task(void *arg) {
     temperature_sample_t sample = temperature_sensor_read(sensor);
     if (sample.status == TEMPERATURE_SAMPLE_VALID) {
       ESP_LOGI(TAG, "sensor_state=valid temperature_c=%.4f", (double)sample.celsius);
-      telemetry_submit_temperature(sample.celsius);
+      if (telemetry_submit_temperature(sample.celsius) != ESP_OK) {
+        ESP_LOGW(TAG, "sensor_input=not_queued");
+      }
     } else {
       ESP_LOGW(TAG, "sensor_state=error reason=%s error=%s", status_reason(sample.status),
                esp_err_to_name(sample.driver_error));

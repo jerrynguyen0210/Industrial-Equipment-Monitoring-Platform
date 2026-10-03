@@ -14,17 +14,17 @@ esp_err_t app_config_load(app_config_t *out) {
   }
 
   const size_t device_id_length = strlen(CONFIG_IEMP_DEVICE_ID);
-  bool invalid_device_id = device_id_length == 0 || device_id_length > 128 ||
-                           strpbrk(CONFIG_IEMP_DEVICE_ID, "/+#") != NULL;
+  if (device_id_length == 0 || device_id_length > 128 ||
+      strpbrk(CONFIG_IEMP_DEVICE_ID, "/+#") != NULL) {
+    ESP_LOGE(TAG, "invalid_config field=device_id");
+    return ESP_ERR_INVALID_ARG;
+  }
   for (size_t index = 0; index < device_id_length; ++index) {
     const unsigned char character = (unsigned char)CONFIG_IEMP_DEVICE_ID[index];
     if (character < 0x20 || character == 0x7f) {
-      invalid_device_id = true;
+      ESP_LOGE(TAG, "invalid_config field=device_id");
+      return ESP_ERR_INVALID_ARG;
     }
-  }
-  if (invalid_device_id) {
-    ESP_LOGE(TAG, "invalid_config field=device_id");
-    return ESP_ERR_INVALID_ARG;
   }
 
   const size_t ssid_length = strlen(CONFIG_IEMP_WIFI_SSID);
