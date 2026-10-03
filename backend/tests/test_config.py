@@ -3,8 +3,9 @@ import traceback
 import unittest
 from unittest.mock import Mock, patch
 
-from app.config import database_conninfo
-from app.main import check_database, create_app
+from app.core.config import database_conninfo
+from app.core.health import check_database
+from app.main import create_app
 from fastapi.testclient import TestClient
 from psycopg.conninfo import conninfo_to_dict
 
@@ -73,7 +74,7 @@ class DatabaseConfigurationTests(unittest.TestCase):
             os.environ,
             {"DATABASE_URL": "postgresql://local:test-only@db:5433/telemetry"},
         ):
-            with patch("app.main.psycopg.connect") as connect:
+            with patch("app.core.health.psycopg.connect") as connect:
                 check_database()
         args, kwargs = connect.call_args
         self.assertEqual(conninfo_to_dict(args[0])["host"], "db")

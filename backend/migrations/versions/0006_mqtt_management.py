@@ -16,7 +16,9 @@ depends_on = None
 def upgrade() -> None:
     op.add_column(
         "devices",
-        sa.Column("mqtt_managed", sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.Column(
+            "mqtt_managed", sa.Boolean(), nullable=False, server_default=sa.false()
+        ),
     )
 
 

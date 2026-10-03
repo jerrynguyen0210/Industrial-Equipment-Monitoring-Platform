@@ -7,8 +7,8 @@ from threading import Barrier
 
 from alembic import command
 from alembic.config import Config
-from app.models import Device, Telemetry
-from app.seed import DEVICE_ID, GATEWAY_ID
+from app.db.models import Device, Telemetry
+from app.db.seed import DEVICE_ID, GATEWAY_ID
 from postgres_test_case import BACKEND, PostgresTestCase
 from sqlalchemy import delete, func, insert, inspect, select, text
 from sqlalchemy.exc import IntegrityError, StatementError

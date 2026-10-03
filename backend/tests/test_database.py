@@ -4,7 +4,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from app.database import create_database_engine
+from app.db.session import create_database_engine
 
 
 class DatabaseEngineTests(unittest.TestCase):
@@ -21,7 +21,7 @@ class DatabaseEngineTests(unittest.TestCase):
                     "PGHOST": "wrong-host",
                 },
             ),
-            patch("app.database.create_engine") as create,
+            patch("app.db.session.create_engine") as create,
         ):
             create_database_engine()
         args, kwargs = create.call_args
@@ -52,7 +52,7 @@ class DatabaseEngineTests(unittest.TestCase):
                 },
                 clear=True,
             ),
-            patch("app.database.create_engine") as create,
+            patch("app.db.session.create_engine") as create,
         ):
             create_database_engine()
         settings = create.call_args.kwargs["connect_args"]

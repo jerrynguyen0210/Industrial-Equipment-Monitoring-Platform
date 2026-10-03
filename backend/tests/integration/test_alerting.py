@@ -8,10 +8,10 @@ from datetime import UTC, datetime, timedelta
 from threading import Barrier
 from unittest.mock import patch
 
+from app.db.models import AlertEpisode, AlertState, Telemetry
+from app.db.seed import DEVICE_ID, GATEWAY_ID
 from app.main import create_app
-from app.models import AlertEpisode, AlertState, Telemetry
-from app.seed import DEVICE_ID, GATEWAY_ID
-from app.telemetry_openapi import VALID_EVENT
+from app.telemetry.openapi import VALID_EVENT
 from fastapi.testclient import TestClient
 from postgres_test_case import PostgresTestCase
 from sqlalchemy import select

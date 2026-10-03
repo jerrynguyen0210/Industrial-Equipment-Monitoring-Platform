@@ -1,6 +1,7 @@
 """Wire models for the approved telemetry-batch.v1 contract, separate from ORM rows."""
 
 import re
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Annotated, Literal, Self
@@ -209,3 +210,29 @@ class TelemetryBatchError(ContractModel):
     reason: BatchReason
     message: str
     details: list[ValidationDetail] = Field(default_factory=list)
+
+
+class HistoryPoint(BaseModel):
+    event_at: datetime
+    timestamp_source: Literal["measured_at", "gateway_received_at"]
+    measured_at: datetime | None
+    gateway_received_at: datetime
+    clock_quality: Literal["synchronised", "unsynchronised", "estimated", "unknown"]
+    value: Decimal
+    unit: str
+    gap_before: bool
+
+
+class DeviceHistory(BaseModel):
+    device_id: str
+    unit: str
+    range_start: datetime
+    range_end: datetime
+    truncated: bool
+    points: list[HistoryPoint]
+
+
+@dataclass(frozen=True)
+class ValidatedTelemetryBatch:
+    schema_version: Literal[1]
+    items: tuple[TelemetryEvent | TelemetryResponseItem, ...]

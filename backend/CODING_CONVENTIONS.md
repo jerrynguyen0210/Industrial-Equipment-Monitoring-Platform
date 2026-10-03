@@ -4,8 +4,17 @@ Follow [CONTRIBUTING.md](../CONTRIBUTING.md) and these backend-specific rules.
 
 ## Structure
 
+- Organize application code by feature under `devices`, `telemetry`, and `alerts`.
+  History belongs to telemetry; shared configuration/authentication belongs to
+  `core`, database infrastructure to `db`, and broker access to `integrations`.
 - Keep HTTP parsing/mapping, authentication, business rules, and persistence in
   separate modules.
+- Put request/response models in feature `schemas.py`, HTTP adapters in
+  `router.py`, and business rules/transaction coordination in `service.py`.
+- Device and telemetry repositories take a caller-owned session and never commit.
+  Alert evaluation uses the ingestion session so alert state commits with readings.
+- Import implementations from feature packages. Root compatibility modules exist
+  only for deployment scripts and documented CLI commands.
 - Use typed functions and explicit dependencies. Keep route handlers small.
 - Format and lint with the committed Ruff configuration.
 - Never expose database models directly as public request models.

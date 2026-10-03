@@ -7,22 +7,22 @@ from pathlib import Path
 from typing import Annotated
 from unittest.mock import patch
 
-from app.telemetry_openapi import (
+from app.telemetry.openapi import (
     MIXED_RESPONSE,
     REQUEST_EXAMPLES,
     VALID_EVENT,
     build_telemetry_openapi,
 )
-from app.telemetry_schemas import (
+from app.telemetry.schemas import (
     MAX_COUNTER,
     TelemetryBatch,
     TelemetryBatchResponse,
     TelemetryEvent,
     TelemetryResponseItem,
-)
-from app.telemetry_validation import (
-    BatchValidationError,
     ValidatedTelemetryBatch,
+)
+from app.telemetry.validation import (
+    BatchValidationError,
     parse_telemetry_batch,
     read_telemetry_batch,
     validate_telemetry_item,
@@ -230,7 +230,7 @@ class TelemetryBoundaryTests(unittest.TestCase):
         for body, reason in cases:
             with self.subTest(reason=reason, body=str(body)[:60]):
                 with patch(
-                    "app.telemetry_validation.validate_telemetry_item"
+                    "app.telemetry.validation.validate_telemetry_item"
                 ) as validate:
                     with self.assertRaises(BatchValidationError) as caught:
                         parse_telemetry_batch(body)

@@ -1,8 +1,8 @@
 """Run versioned migrations with the backend's explicit database configuration."""
 
 from alembic import context
-from app.database import create_database_engine
-from app.models import Base
+from app.db.models import Base
+from app.db.session import create_database_engine
 from sqlalchemy import Connection
 from sqlalchemy.exc import SQLAlchemyError
 

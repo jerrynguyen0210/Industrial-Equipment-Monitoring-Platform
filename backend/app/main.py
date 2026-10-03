@@ -1,48 +1,20 @@
-"""Local platform health and authenticated telemetry ingestion API."""
+"""Compose feature routers and manage application dependencies."""
 
-import logging
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
-from typing import Literal
 
-import psycopg
 from fastapi import FastAPI
-from fastapi.openapi.utils import get_openapi
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 from sqlalchemy import Engine
 
-from app.alert_api import router as alert_router
-from app.config import database_conninfo
-from app.database import create_database_engine
-from app.device_api import router as device_router
-from app.gateway_auth import load_gateway_credentials
-from app.history_api import router as history_router
-from app.mqtt_admin import BrokerAdmin
-from app.telemetry_api import router as telemetry_router
-from app.telemetry_openapi import build_telemetry_openapi
-
-logger = logging.getLogger("uvicorn.error")
-
-
-class Health(BaseModel):
-    status: Literal["ok"]
-
-
-class Readiness(BaseModel):
-    status: Literal["ready", "unavailable"]
-    database: Literal["ok", "unavailable"]
-
-
-def check_database() -> None:
-    """Authenticate and execute a query, with bounded connection/query times."""
-    with psycopg.connect(
-        database_conninfo(),
-        connect_timeout=3,
-        options="-c statement_timeout=2000",
-        autocommit=True,
-    ) as connection:
-        connection.execute("SELECT 1").fetchone()
+from app.alerts.router import router as alert_router
+from app.core.config import database_conninfo
+from app.core.gateway_auth import load_gateway_credentials
+from app.core.health import check_database, create_health_router
+from app.db.session import create_database_engine
+from app.devices.router import router as device_router
+from app.integrations.mqtt import BrokerAdmin
+from app.telemetry.openapi import install_telemetry_openapi
+from app.telemetry.router import router as telemetry_router
 
 
 def create_app(
@@ -69,58 +41,11 @@ def create_app(
         docs_url=None,
         redoc_url=None,
     )
-
-    @application.get("/health", response_model=Health)
-    @application.get("/api/health/live", response_model=Health)
-    def live() -> Health:
-        """Report API liveness without checking dependencies."""
-        return Health(status="ok")
-
-    @application.get(
-        "/ready",
-        response_model=Readiness,
-        responses={503: {"model": Readiness, "description": "Database unavailable"}},
-    )
-    @application.get(
-        "/api/health/ready",
-        response_model=Readiness,
-        responses={503: {"model": Readiness, "description": "Database unavailable"}},
-    )
-    def ready() -> Readiness | JSONResponse:
-        """Check database authentication and query execution on every request."""
-        try:
-            database_probe()
-        except psycopg.Error:
-            # Connection errors may include credentials or infrastructure details.
-            logger.warning("database_readiness_failed")
-            return JSONResponse(
-                status_code=503,
-                content=Readiness(
-                    status="unavailable", database="unavailable"
-                ).model_dump(),
-            )
-        return Readiness(status="ready", database="ok")
-
+    application.include_router(create_health_router(database_probe))
     application.include_router(telemetry_router)
     application.include_router(device_router)
-    application.include_router(history_router)
     application.include_router(alert_router)
-
-    def openapi() -> dict:
-        if application.openapi_schema is None:
-            schema = get_openapi(
-                title=application.title,
-                version=application.version,
-                routes=application.routes,
-            )
-            contract = build_telemetry_openapi()
-            schema["paths"].update(contract["paths"])
-            for section, definitions in contract["components"].items():
-                schema["components"].setdefault(section, {}).update(definitions)
-            application.openapi_schema = schema
-        return application.openapi_schema
-
-    application.openapi = openapi
+    install_telemetry_openapi(application)
     return application
 
 

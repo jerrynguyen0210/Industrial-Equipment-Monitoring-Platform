@@ -4,9 +4,9 @@ import secrets
 import unittest
 from unittest.mock import Mock, patch
 
-from app.gateway_auth import load_gateway_credentials
+from app.core.gateway_auth import load_gateway_credentials
 from app.main import create_app
-from app.telemetry_openapi import build_telemetry_openapi
+from app.telemetry.openapi import build_telemetry_openapi
 from fastapi.testclient import TestClient
 
 

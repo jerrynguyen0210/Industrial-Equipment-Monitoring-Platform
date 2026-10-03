@@ -9,9 +9,9 @@ from uuid import uuid4
 import psycopg
 from alembic import command
 from alembic.config import Config
-from app.config import database_conninfo
-from app.database import create_database_engine
-from app.seed import seed_registry
+from app.core.config import database_conninfo
+from app.db.seed import seed_registry
+from app.db.session import create_database_engine
 from psycopg import sql
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError

@@ -12,9 +12,9 @@ from threading import Barrier
 
 from alembic import command
 from alembic.config import Config
-from app.models import Device, Gateway, Site
-from app.registry import OwnershipStatus, check_device_ownership
-from app.seed import DEVICE_ID, GATEWAY_ID, SITE_ID, SeedConflictError
+from app.db.models import Device, Gateway, Site
+from app.db.seed import DEVICE_ID, GATEWAY_ID, SITE_ID, SeedConflictError
+from app.devices.service import OwnershipStatus, check_device_ownership
 from postgres_test_case import BACKEND, PostgresTestCase
 from sqlalchemy import func, insert, inspect, select, text, update
 from sqlalchemy.exc import IntegrityError
@@ -241,7 +241,7 @@ class RegistryPostgresTests(PostgresTestCase):
         commands = [
             ["alembic", "downgrade", "base"],
             ["alembic", "upgrade", "head"],
-            ["app.seed"],
+            ["app.db.seed"],
             ["app.seed"],
             ["alembic", "check"],
         ]

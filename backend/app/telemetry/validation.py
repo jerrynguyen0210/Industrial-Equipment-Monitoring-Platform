@@ -1,14 +1,13 @@
 """Two-stage telemetry validation for the authenticated HTTP adapter."""
 
 import json
-from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
-from typing import Any, Literal
+from typing import Any
 
 from fastapi import HTTPException, Request
 from pydantic import Field, TypeAdapter, ValidationError
 
-from app.telemetry_schemas import (
+from app.telemetry.schemas import (
     MAX_BATCH_SIZE,
     Counter,
     Identifier,
@@ -17,6 +16,7 @@ from app.telemetry_schemas import (
     TelemetryBatchError,
     TelemetryEvent,
     TelemetryResponseItem,
+    ValidatedTelemetryBatch,
     ValidationDetail,
 )
 
@@ -25,12 +25,6 @@ class _BatchEnvelope(TelemetryBatch):
     # Keep individual malformed values for classification instead of failing the
     # whole mixed batch through FastAPI's automatic nested-model validation.
     events: list[Any] = Field(strict=True, min_length=1, max_length=MAX_BATCH_SIZE)
-
-
-@dataclass(frozen=True)
-class ValidatedTelemetryBatch:
-    schema_version: Literal[1]
-    items: tuple[TelemetryEvent | TelemetryResponseItem, ...]
 
 
 class BatchValidationError(ValueError):

@@ -7,9 +7,9 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
+from app.db.models import Device, Telemetry
+from app.db.seed import DEVICE_ID, GATEWAY_ID
 from app.main import create_app
-from app.models import Device, Telemetry
-from app.seed import DEVICE_ID, GATEWAY_ID
 from fastapi.testclient import TestClient
 from postgres_test_case import PostgresTestCase
 from sqlalchemy import insert, text

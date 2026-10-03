@@ -7,10 +7,10 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
+from app.db.models import AlertEpisode, AlertState, Telemetry
+from app.db.seed import DEVICE_ID, GATEWAY_ID
 from app.main import create_app
-from app.models import AlertEpisode, AlertState, Telemetry
-from app.seed import DEVICE_ID, GATEWAY_ID
-from app.telemetry_openapi import VALID_EVENT
+from app.telemetry.openapi import VALID_EVENT
 from fastapi.testclient import TestClient
 from postgres_test_case import PostgresTestCase
 from sqlalchemy import event as sqlalchemy_event
@@ -140,7 +140,7 @@ class SprintOneTelemetryQATests(PostgresTestCase):
             for column in Telemetry.__table__.columns
         }
         changed = self.reading | {"value": 99}
-        with patch("app.ingestion.logger.info") as conflict_log:
+        with patch("app.telemetry.service.logger.info") as conflict_log:
             response = self.post(changed)
         self.assert_outcomes(response, (changed,), [("rejected", "identity_conflict")])
         conflict_log.assert_called_once_with(

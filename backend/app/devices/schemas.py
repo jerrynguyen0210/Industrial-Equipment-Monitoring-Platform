@@ -1,10 +1,10 @@
-"""Read-only equipment status response models."""
+"""Device registration, heartbeat, and equipment status wire models."""
 
 from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class LatestReading(BaseModel):
@@ -40,3 +40,14 @@ class GatewayOption(BaseModel):
 
 class GatewayList(BaseModel):
     gateways: list[GatewayOption]
+
+
+class DeviceRegistration(BaseModel):
+    device_id: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
+    gateway_id: str = Field(min_length=1, max_length=128)
+    name: str = Field(min_length=1, max_length=200)
+    password: str = Field(min_length=12, max_length=128)
+
+
+class DeviceHeartbeat(BaseModel):
+    password: str

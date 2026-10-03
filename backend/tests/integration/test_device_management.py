@@ -4,14 +4,15 @@ import json
 from datetime import UTC, datetime, timedelta
 from unittest.mock import Mock, patch
 
+from app.db.models import Device, Gateway
+from app.db.seed import GATEWAY_ID
+from app.integrations.mqtt import BrokerUnavailable
+from app.main import create_app
 from fastapi.testclient import TestClient
 from postgres_test_case import PostgresTestCase
-from sqlalchemy import select, update
-
-from app.main import create_app
-from app.models import Device
-from app.mqtt_admin import BrokerUnavailable
-from app.seed import GATEWAY_ID
+from sqlalchemy import event, select, update
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
 
 class DeviceManagementTests(PostgresTestCase):
@@ -268,3 +269,123 @@ class DeviceManagementTests(PostgresTestCase):
                         for item in client.get("/api/v1/devices").json()["devices"]
                     },
                 )
+
+    def test_registration_business_errors_keep_http_reasons(self) -> None:
+        registration = {
+            "device_id": "invalid-registration",
+            "gateway_id": GATEWAY_ID,
+            "name": "Test device",
+            "password": "long-device-password-123",
+        }
+        with self.engine.begin() as connection:
+            connection.execute(
+                update(Gateway)
+                .where(Gateway.gateway_id == GATEWAY_ID)
+                .values(enabled=False)
+            )
+        with (
+            patch.dict("os.environ", self.environment),
+            TestClient(self.app()) as client,
+        ):
+            for gateway_id in ("unknown-gateway", GATEWAY_ID):
+                with self.subTest(gateway_id=gateway_id):
+                    response = client.post(
+                        "/api/v1/devices",
+                        json=registration | {"gateway_id": gateway_id},
+                    )
+                    self.assertEqual(response.status_code, 404)
+                    self.assertEqual(
+                        response.json()["detail"]["reason"], "gateway_not_found"
+                    )
+            with self.engine.begin() as connection:
+                connection.execute(
+                    update(Gateway)
+                    .where(Gateway.gateway_id == GATEWAY_ID)
+                    .values(enabled=True)
+                )
+            response = client.post(
+                "/api/v1/devices", json=registration | {"name": "   "}
+            )
+            self.assertEqual(response.status_code, 422)
+            self.assertEqual(response.json()["detail"]["reason"], "name_required")
+        self.broker.create_device.assert_not_called()
+        with Session(self.engine) as session:
+            self.assertIsNone(session.get(Device, registration["device_id"]))
+
+    def test_unknown_device_credentials_keep_http_reason(self) -> None:
+        with (
+            patch.dict("os.environ", self.environment),
+            TestClient(self.app()) as client,
+        ):
+            for operation in ("heartbeat", "mqtt"):
+                with self.subTest(operation=operation):
+                    response = client.post(
+                        f"/api/v1/devices/missing-device/{operation}",
+                        json={"password": "long-device-password-123"},
+                    )
+                    self.assertEqual(response.status_code, 401)
+                    self.assertEqual(
+                        response.json()["detail"]["reason"],
+                        "invalid_device_credentials",
+                    )
+        self.broker.ensure_device.assert_not_called()
+
+    def test_registration_commit_failure_removes_created_broker_account(self) -> None:
+        registration = {
+            "device_id": "commit-failed-device",
+            "gateway_id": GATEWAY_ID,
+            "name": "Test device",
+            "password": "long-device-password-123",
+        }
+
+        def fail_commit(_session: Session) -> None:
+            raise SQLAlchemyError("secret-sentinel")
+
+        failing_session = Session(self.engine)
+        event.listen(failing_session, "before_commit", fail_commit)
+        with (
+            patch.dict("os.environ", self.environment),
+            TestClient(self.app()) as client,
+            patch("app.devices.service.Session", return_value=failing_session),
+        ):
+            response = client.post("/api/v1/devices", json=registration)
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()["detail"]["reason"], "registry_unavailable")
+        self.assertNotIn("secret-sentinel", response.text)
+        self.broker.create_device.assert_called_once_with(
+            registration["device_id"], registration["password"]
+        )
+        self.broker.delete_device.assert_called_once_with(registration["device_id"])
+        with Session(self.engine) as session:
+            self.assertIsNone(session.get(Device, registration["device_id"]))
+
+    def test_delete_commit_failure_restores_device_and_broker_access(self) -> None:
+        registration = {
+            "device_id": "retained-device",
+            "gateway_id": GATEWAY_ID,
+            "name": "Test device",
+            "password": "long-device-password-123",
+        }
+
+        def fail_commit(_session: Session) -> None:
+            raise SQLAlchemyError("secret-sentinel")
+
+        with (
+            patch.dict("os.environ", self.environment),
+            TestClient(self.app()) as client,
+        ):
+            self.assertEqual(
+                client.post("/api/v1/devices", json=registration).status_code, 201
+            )
+            failing_session = Session(self.engine)
+            event.listen(failing_session, "before_commit", fail_commit)
+            with patch("app.devices.service.Session", return_value=failing_session):
+                response = client.delete(f"/api/v1/devices/{registration['device_id']}")
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()["detail"]["reason"], "registry_unavailable")
+        self.assertNotIn("secret-sentinel", response.text)
+        self.broker.disable_device.assert_called_once_with(registration["device_id"])
+        self.broker.enable_device.assert_called_once_with(registration["device_id"])
+        self.broker.delete_device.assert_not_called()
+        with Session(self.engine) as session:
+            self.assertIsNotNone(session.get(Device, registration["device_id"]))

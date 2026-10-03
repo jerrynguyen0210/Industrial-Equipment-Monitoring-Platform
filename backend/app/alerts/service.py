@@ -1,12 +1,14 @@
-"""Minimal per-device temperature alert evaluation during telemetry ingestion."""
+"""Temperature alert evaluation and persisted episode read models."""
 
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy.orm import Session
+from sqlalchemy import Engine, func, select
+from sqlalchemy.orm import Session, aliased
 
-from app.models import AlertEpisode, AlertState
-from app.telemetry_schemas import TelemetryEvent
+from app.alerts.schemas import AlertEpisodeList, AlertEpisodeStatus, AlertRule
+from app.db.models import AlertEpisode, AlertState, Device, Telemetry
+from app.telemetry.schemas import TelemetryEvent
 
 HIGH_THRESHOLD = Decimal("30")
 RECOVERY_THRESHOLD = Decimal("28")
@@ -80,3 +82,57 @@ def evaluate_accepted_reading(
             episode.resolved_at = event_at
             episode.resolving_telemetry_id = telemetry_id
             state.active_episode_id = None
+
+
+def list_alert_episodes(engine: Engine, limit: int) -> AlertEpisodeList:
+    """Return active episodes first, then the most recently opened ones."""
+    opening = aliased(Telemetry)
+    resolving = aliased(Telemetry)
+    statement = (
+        select(
+            AlertEpisode.id,
+            AlertEpisode.device_id,
+            Device.name.label("device_name"),
+            AlertEpisode.opened_at,
+            AlertEpisode.resolved_at,
+            opening.value.label("opening_value"),
+            resolving.value.label("resolving_value"),
+        )
+        .join(Device, Device.device_id == AlertEpisode.device_id)
+        .join(opening, opening.id == AlertEpisode.opening_telemetry_id)
+        .outerjoin(resolving, resolving.id == AlertEpisode.resolving_telemetry_id)
+        .order_by(
+            AlertEpisode.resolved_at.is_(None).desc(),
+            AlertEpisode.opened_at.desc(),
+            AlertEpisode.id.desc(),
+        )
+        .limit(limit)
+    )
+    active = select(func.count()).where(AlertEpisode.resolved_at.is_(None))
+
+    with Session(engine) as session:
+        rows = session.execute(statement).all()
+        active_count = session.execute(active).scalar_one()
+
+    return AlertEpisodeList(
+        rule=AlertRule(
+            high_threshold=HIGH_THRESHOLD,
+            recovery_threshold=RECOVERY_THRESHOLD,
+            consecutive_readings=CONSECUTIVE_READINGS,
+            unit="celsius",
+        ),
+        active_count=active_count,
+        episodes=[
+            AlertEpisodeStatus(
+                id=row.id,
+                device_id=row.device_id,
+                device_name=row.device_name,
+                state="active" if row.resolved_at is None else "resolved",
+                opened_at=row.opened_at,
+                opening_value=row.opening_value,
+                resolved_at=row.resolved_at,
+                resolving_value=row.resolving_value,
+            )
+            for row in rows
+        ],
+    )

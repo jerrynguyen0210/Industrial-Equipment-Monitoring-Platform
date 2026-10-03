@@ -3,6 +3,59 @@
 FastAPI service for device registration, telemetry ingestion, PostgreSQL storage,
 history, presence, and prototype temperature alerts.
 
+## Application structure
+
+```text
+app/
+├── main.py                 # Application factory, lifespan, and router composition
+├── core/
+│   ├── config.py           # Environment configuration
+│   ├── gateway_auth.py     # Gateway bearer authentication
+│   └── health.py           # Liveness and database readiness
+├── db/
+│   ├── models.py           # Shared SQLAlchemy models and metadata
+│   ├── session.py          # Engine configuration
+│   ├── types.py            # UTC database types
+│   └── seed.py             # Explicit demo registry seed
+├── devices/
+│   ├── router.py
+│   ├── schemas.py
+│   ├── service.py
+│   ├── repository.py
+│   └── credentials.py      # Device password hashing
+├── telemetry/
+│   ├── router.py           # Ingestion and device history endpoints
+│   ├── schemas.py
+│   ├── service.py
+│   ├── repository.py
+│   ├── validation.py       # Lossless JSON parsing and item classification
+│   ├── time.py             # Event-time SQL expression
+│   └── openapi.py          # Ingestion contract and schema generation
+├── alerts/
+│   ├── router.py
+│   ├── schemas.py
+│   └── service.py          # Episode queries and temperature evaluation
+└── integrations/
+    └── mqtt.py             # Mosquitto administration
+```
+
+Routers handle HTTP input and map service/dependency failures to safe responses.
+Schemas define request, response, and validated batch data separately from ORM
+models. Device and telemetry services own business rules, sessions, and commit
+boundaries; their repositories execute queries without committing. The smaller
+alerts feature keeps its episode queries and evaluation in its service.
+
+Telemetry ingestion calls alert evaluation with the same session and device
+locks, so readings and alert state commit together. Device registration and
+deletion coordinate broker changes with database rollback compensation.
+Cross-feature registry and presence queries go through the device repository.
+Shared ORM metadata stays in `db/models.py` for Alembic and foreign keys.
+
+Use the feature packages for new imports. Thin `app.database` and `app.models`
+wrappers preserve existing deployment-script imports. The existing
+`python -m app.seed` and `python -m app.telemetry_openapi --output PATH` commands
+delegate to `app.db.seed` and `app.telemetry.openapi`.
+
 ## API summary
 
 | Endpoint | Purpose |
